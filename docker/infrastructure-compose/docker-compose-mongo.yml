@@ -1,0 +1,32 @@
+version: '3.4'
+services:
+    mongodb:
+        container_name: mongo-dev
+        image: mongo:latest
+        environment:
+            - MONGO_DATA_DIR=/data/db
+            - MONGO_LOG_DIR=/data/logs
+        volumes:
+            - mongo_data:/data/db
+            - mongo_logs:/data/logs
+        ports:
+            - 27027:27017
+            
+    mongodb-express:
+        container_name: mongo-express
+        image: mongo-express
+        links: 
+            - "mongodb"
+            - "mongodb:mongo"
+        ports:
+            - 8081:8081
+volumes:
+    mongo_data:
+        external:
+            name: dev-mongo_data
+    mongo_logs:
+        external:
+            name: dev-mongo_logs
+
+networks:
+  default:

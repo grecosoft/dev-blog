@@ -1,0 +1,26 @@
+version: '3.4'
+services:
+    rabbit:
+        container_name: rabbit-dev
+        image: rabbitmq:3-management
+        environment:
+            - RABBITMQ_LOGS=/var/log/rabbitmq/rabbit.log
+        volumes:
+            - rabbit_data:/var/lib/rabbitmq
+            - rabbit_logs:/var/log/rabbitmq
+            - ./rabbit/rabbitmq.config:/etc/rabbitmq/rabbitmq.config:ro
+            - ./rabbit/definitions.json:/etc/rabbitmq/definitions.json:ro
+        ports:
+            - 5682:5672
+            - 15682:15672
+
+volumes:
+    rabbit_data:
+        external:
+            name: dev-rabbit_data
+    rabbit_logs:
+        external:
+            name: dev-rabbit_logs
+
+networks:
+  default:

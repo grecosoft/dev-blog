@@ -1,0 +1,27 @@
+version: '3.4'
+services:
+    redis:
+        container_name: redis-dev
+        image: redis
+        command: redis-server --appendonly yes
+        volumes:
+            - redis_data:/data
+        ports:
+            - 6389:6379
+
+    redis-commander:
+        container_name: redis-commander
+        hostname: redis-commander
+        image: rediscommander/redis-commander:latest
+        restart: always
+        environment: 
+            - REDIS_HOSTS=local:redis:6379
+        ports: 
+            - 8082:8081
+volumes:
+    redis_data:
+        external:
+            name: dev-redis_data
+
+networks:
+  default:

@@ -1,0 +1,21 @@
+version: '3.4'
+services:
+    sql-server:
+        container_name: sql-server-dev
+        image: sql-server-dev
+        build:
+            context: ./sql-server
+            dockerfile: Dockerfile
+        ports:
+            - "1443:1433"
+        volumes:
+            - sql_server_data:/var/opt/mssql
+
+
+volumes:
+    sql_server_data:
+        external:
+            name: dev-sql-server_data
+
+networks:
+  default:
