@@ -1,0 +1,138 @@
+version: '3.7'
+services:
+
+    # -------------------------------------------------------------------------
+    # The following are infrastructure services used by application services
+    # that are part of the Microservice solution implementation.
+    # -------------------------------------------------------------------------
+    seq:
+        container_name: seq-dev
+        image: datalust/seq:latest
+        volumes:
+            - seq_data:/data
+        environment:
+            - ACCEPT_EULA=Y
+        ports:
+            - 8051:80       # Expose the port for the Web Seq viewer but not the SEQ service port.
+                            # This should be the case when running within production.
+                            
+            # - 5351:5341   # However, to submit logs when developing specific services within an IDE locally, 
+                            # this port is exposed during development. (appsettings.Development.json)
+                            # When running within Docker, container-to-container network is used.
+                            
+    mongodb:
+        container_name: mongo-dev
+        image: mongo:latest
+        environment:
+            - MONGO_DATA_DIR=/data/db
+            - MONGO_LOG_DIR=/data/logs
+        volumes:
+            - mongo_data:/data/db
+            - mongo_logs:/data/logs
+        # ports: 
+            # -  27027:27017    # The initial port for MongoDB shold never be exposed in production.
+                                # However, to allow developing specific services within an IDE locally,
+                                # this port is exposed during development.  (appsettings.Development.json)
+                                # When runnign within Docker, container-to-container network is used.
+
+    mongodb-express:
+        container_name: mongo-express
+        image: mongo-express
+        links: 
+            - "mongodb"
+            - "mongodb:mongo"
+        ports:
+            - 8081:8081
+
+    rabbit:
+        container_name: rabbit-dev
+        hostname: rabbit-dev-host
+        image: rabbitmq:3-management
+        environment:
+            - RABBITMQ_LOGS=/var/log/rabbitmq/rabbit.log
+        volumes:
+            - rabbit_data:/var/lib/rabbitmq
+            - rabbit_logs:/var/log/rabbitmq
+            - ./infrastructure/rabbit/rabbitmq.config:/etc/rabbitmq/rabbitmq.config:ro
+            - ./infrastructure/rabbit/definitions.json:/etc/rabbitmq/definitions.json:ro
+        ports:
+            - 15682:15672   # In production, expose the port so the Web Admin site can be used.
+            
+            # - 5682:5672   # The internal port for RabbitMQ should never be exposed in production.
+                            # However, to allow developing specific services within an IDE locally,
+                            # this port is exposed during development. (appsettings.Development.json)
+                            # When running within Docker, container-to-container network is used.
+
+                            
+    # -------------------------------------------------------------------------              
+    # The following are the application specific services comprising of the
+    # Microservice based solution.
+    # -------------------------------------------------------------------------
+    submission-api:
+        build: ./microservices/Claims.Submissions/
+        depends_on:
+            - seq
+            - rabbit
+        ports:  
+            - "6207:80"     # Expose internal port 80 as 6201 so it can be
+                            # accessed from the Docker Host.
+        environment: 
+            - logging__seqEndpoint=http://seq:5341
+
+            - netfusion__rabbitMQ__connections__[0]__busName=testBus
+            - netfusion__rabbitMQ__connections__[0]__userName=demo
+            - netfusion__rabbitMQ__connections__[0]__password=papillion
+            - netfusion__rabbitMQ__connections__[0]__vHostName=/netfusion
+            - netfusion__rabbitMQ__connections__[0]__hosts__[0]__hostName=rabbit
+            - netfusion__rabbitMQ__connections__[0]__hosts__[0]__port=5672
+
+            - databases__claims__MongoUrl=mongodb://mongodb:27017
+            - databases__claims__DatabaseName=Claims
+
+    alert-api:
+        build: ./microservices/Claims.Alerts/
+        depends_on:
+            - seq
+            - rabbit
+
+        environment: 
+            - logging__seqEndpoint=http://seq:5341
+
+            - netfusion__rabbitMQ__connections__[0]__busName=testBus
+            - netfusion__rabbitMQ__connections__[0]__userName=demo
+            - netfusion__rabbitMQ__connections__[0]__password=papillion
+            - netfusion__rabbitMQ__connections__[0]__vHostName=/netfusion
+            - netfusion__rabbitMQ__connections__[0]__hosts__[0]__hostName=rabbit
+            - netfusion__rabbitMQ__connections__[0]__hosts__[0]__port=5672
+
+            - databases__alerts__MongoUrl=mongodb://mongodb:27017
+            - databases__alerts__DatabaseName=Alerts
+
+
+# -------------------------------------------------------------------------
+# Volume definitions to which internal paths are mapped to save container 
+# state between executions.
+# -------------------------------------------------------------------------
+volumes:
+    seq_data:
+        external:
+            name: dev-seq_data
+            
+    mongo_data:
+        external:
+            name: dev-mongo_data
+    mongo_logs:
+        external:
+            name: dev-mongo_logs
+            
+    rabbit_data:
+        external:
+            name: dev-rabbit_data
+    rabbit_logs:
+        external:
+            name: dev-rabbit_logs
+
+networks:
+  default:
+
+

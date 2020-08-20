@@ -1,0 +1,111 @@
+version: '3.4'
+services:
+
+    seq:
+        container_name: seq-dev
+        image: datalust/seq:latest
+        volumes:
+            - seq_data:/data
+        environment:
+            - ACCEPT_EULA=Y
+        ports:
+            - 5351:5341
+            - 8051:80
+
+    mongodb:
+        container_name: mongo-dev
+        image: mongo:latest
+        environment:
+            - MONGO_DATA_DIR=/data/db
+            - MONGO_LOG_DIR=/data/logs
+        volumes:
+            - mongo_data:/data/db
+            - mongo_logs:/data/logs
+        ports:
+            - 27027:27017
+            
+    mongodb-express:
+        container_name: mongo-express
+        image: mongo-express
+        links: 
+            - "mongodb"
+            - "mongodb:mongo"
+        ports:
+            - 8081:8081
+
+    redis:
+        container_name: redis-dev
+        image: redis
+        command: redis-server --appendonly yes
+        volumes:
+            - redis_data:/data
+        ports:
+            - 6389:6379
+            
+    redis-commander:
+        container_name: redis-commander
+        hostname: redis-commander
+        image: rediscommander/redis-commander:latest
+        restart: always
+        environment: 
+            - REDIS_HOSTS=local:redis:6379
+        ports: 
+            - 8082:8081
+
+    rabbit:
+        container_name: rabbit-dev
+        image: rabbitmq:3-management
+        environment:
+            - RABBITMQ_LOGS=/var/log/rabbitmq/rabbit.log
+        volumes:
+            - rabbit_data:/var/lib/rabbitmq
+            - rabbit_logs:/var/log/rabbitmq
+            - ./rabbit/rabbitmq.config:/etc/rabbitmq/rabbitmq.config:ro
+            - ./rabbit/definitions.json:/etc/rabbitmq/definitions.json:ro
+        ports:
+            - 5682:5672
+            - 15682:15672
+
+    sql-server:
+        container_name: sql-server-dev
+        image: sql-server-dev
+        build:
+            context: ./sql-server
+            dockerfile: Dockerfile
+        ports:
+            - "1443:1433"
+        volumes:
+            - sql_server_data:/var/opt/mssql
+
+volumes:
+    seq_data:
+        external:
+            name: dev-seq_data
+            
+    mongo_data:
+        external:
+            name: dev-mongo_data
+    mongo_logs:
+        external:
+            name: dev-mongo_logs
+     
+    redis_data:
+        external:
+            name: dev-redis_data       
+            
+    rabbit_data:
+        external:
+            name: dev-rabbit_data
+    rabbit_logs:
+        external:
+            name: dev-rabbit_logs
+
+    sql_server_data:
+        external:
+            name: dev-sql-server_data
+
+networks:
+  default:
+
+
+
