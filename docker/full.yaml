@@ -1,0 +1,54 @@
+version: '3.7'
+services:
+    seq:
+        image: datalust/seq:latest
+        environment:
+            - ACCEPT_EULA=Y
+        volumes:
+            - seq_data:/data
+        networks:
+            - test-net
+        ports:
+            - 8051:80   # Web Admin site.
+        deploy:
+            replicas: 1
+            placement:
+                constraints: [node.labels.type==infra]
+            labels:
+                app: seq
+                
+    rabbit:
+        image: rabbitmq:3-management
+        environment:
+            - RABBITMQ_LOGS=/var/log/rabbitmq/rabbit.log
+        volumes:
+            - rabbit_data:/var/lib/rabbitmq
+            - rabbit_logs:/var/log/rabbitmq
+            - ./rabbit/rabbitmq.config:/etc/rabbitmq/rabbitmq.config:ro
+            - ./rabbit/definitions.json:/etc/rabbitmq/definitions.json:ro
+        networks:
+            - test-net
+        ports:
+            - 15682:15672
+        deploy:
+            replicas: 1
+            placement:
+                constraints: [node.labels.type==infra]
+            labels:
+                app: rabbitmq
+
+volumes:
+    seq_data:
+        external:
+            name: dev-seq_data
+    rabbit_data:
+        external:
+            name: dev-rabbit_data
+    rabbit_logs:
+        external:
+            name: dev-rabbit_logs
+
+networks:
+    test-net:
+        driver: overlay
+ 
