@@ -73,6 +73,7 @@ services:
         depends_on:
             - seq
             - rabbit
+            - mongodb
         ports:  
             - "6207:80"     # Expose internal port 80 as 6201 so it can be
                             # accessed from the Docker Host.

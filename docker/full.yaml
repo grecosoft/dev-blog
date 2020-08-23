@@ -36,17 +36,41 @@ services:
                 constraints: [node.labels.type==infra]
             labels:
                 app: rabbitmq
+                
+    mongodb:
+        container_name: mongo-dev
+        image: mongo:latest
+        environment:
+            - MONGO_DATA_DIR=/data/db
+            - MONGO_LOG_DIR=/data/logs
+        networks:
+            - test-net
+        volumes:
+            - mongo_data:/data/db
+            - mongo_logs:/data/logs
+        deploy:
+            replicas: 1
+            placement:
+                constraints: [node.labels.type==infra]
 
 volumes:
     seq_data:
         external:
             name: dev-seq_data
+            
     rabbit_data:
         external:
             name: dev-rabbit_data
     rabbit_logs:
         external:
             name: dev-rabbit_logs
+            
+    mongo_data:
+        external:
+            name: dev-mongo_data
+    mongo_logs:
+        external:
+            name: dev-mongo_logs
 
 networks:
     test-net:

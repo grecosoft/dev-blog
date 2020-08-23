@@ -1,5 +1,25 @@
 version: '3.7'
 services:
+    # -------------------------------------------------------------------------
+    # The following are infrastructure services used by application services
+    # that are part of the Microservice solution implementation.
+    # -------------------------------------------------------------------------
+    
+    seq:
+        image: datalust/seq:latest
+        environment:
+            - ACCEPT_EULA=Y
+        volumes:
+            - seq_data:/data
+        networks:
+            - test-net
+        ports:
+            - 8051:80   # Web Admin site.
+        deploy:
+            replicas: 1
+            placement:
+                constraints: [node.labels.type==infra]
+                
     rabbit:
         image: rabbitmq:3-management
         environment:
@@ -17,16 +37,115 @@ services:
             replicas: 1
             placement:
                 constraints: [node.labels.type==infra]
-            labels:
-                app: rabbitmq
 
+                
+    mongodb:
+        image: mongo:latest
+        environment:
+            - MONGO_DATA_DIR=/data/db
+            - MONGO_LOG_DIR=/data/logs
+        networks:
+            - test-net
+        volumes:
+            - mongo_data:/data/db
+            - mongo_logs:/data/logs
+        deploy:
+            replicas: 1
+            placement:
+                constraints: [node.labels.type==infra]
+                
+    mongodb-express:
+        image: mongo-express
+        networks:
+            - test-net
+        environment:
+            - ME_CONFIG_MONGODB_SERVER=mongodb
+        depends_on: 
+            - "mongodb"
+        ports:
+            - 8081:8081
+        deploy:
+            replicas: 1
+            placement:
+                constraints: [node.labels.type==infra]
+                
+    # -------------------------------------------------------------------------              
+    # The following are the application specific services comprising of the
+    # Microservice based solution.
+    # -------------------------------------------------------------------------
+
+    submission-api:
+        image: blgreco72dev/claims-submissions
+        depends_on:
+            - seq
+            - rabbit
+            - mongodb
+        ports:  
+            - "6207:80"     # Expose internal port 80 as 6201 so it can be
+                            # accessed from the Docker Host.
+        networks:
+            - test-net
+        environment: 
+            - logging__seqEndpoint=http://seq:5341
+
+            - netfusion__rabbitMQ__connections__[0]__busName=testBus
+            - netfusion__rabbitMQ__connections__[0]__userName=demo
+            - netfusion__rabbitMQ__connections__[0]__password=papillion
+            - netfusion__rabbitMQ__connections__[0]__vHostName=/netfusion
+            - netfusion__rabbitMQ__connections__[0]__hosts__[0]__hostName=rabbit
+            - netfusion__rabbitMQ__connections__[0]__hosts__[0]__port=5672
+
+            - databases__claims__MongoUrl=mongodb://mongodb:27017
+            - databases__claims__DatabaseName=Claims
+        deploy:
+            replicas: 3
+            placement:
+                constraints: [node.role==worker]
+                
+    alert-api:
+        image: blgreco72dev/claims-alerts
+        depends_on:
+            - seq
+            - rabbit
+            - mongodb
+        networks:
+            - test-net
+        environment: 
+            - logging__seqEndpoint=http://seq:5341
+
+            - netfusion__rabbitMQ__connections__[0]__busName=testBus
+            - netfusion__rabbitMQ__connections__[0]__userName=demo
+            - netfusion__rabbitMQ__connections__[0]__password=papillion
+            - netfusion__rabbitMQ__connections__[0]__vHostName=/netfusion
+            - netfusion__rabbitMQ__connections__[0]__hosts__[0]__hostName=rabbit
+            - netfusion__rabbitMQ__connections__[0]__hosts__[0]__port=5672
+
+            - databases__alerts__MongoUrl=mongodb://mongodb:27017
+            - databases__alerts__DatabaseName=Alerts
+        deploy:
+            replicas: 2
+            placement:
+                constraints: [node.role==worker]
+
+    
 volumes:
+    seq_data:
+        external:
+            name: dev-seq_data
+            
     rabbit_data:
         external:
             name: dev-rabbit_data
     rabbit_logs:
         external:
             name: dev-rabbit_logs
+            
+    mongo_data:
+        external:
+            name: dev-mongo_data
+    mongo_logs:
+        external:
+            name: dev-mongo_logs
 
 networks:
     test-net:
