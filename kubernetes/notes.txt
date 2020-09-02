@@ -1,0 +1,372 @@
+____________________________________________________________________
+Installing Minikube
+____________________________________________________________________
+
+https://phoenixnap.com/kb/install-minikube-on-ubuntu
+
+____________________________________________________________________
+Google Cloud Platform
+____________________________________________________________________
+Google Kubernetes Engine (GKE)
+
+
+____________________________________________________________________
+Basic Cluster Commands
+____________________________________________________________________
+
+- To view information about the Kubernetes cluster:
+
+kubectl cluster-info   
+
+- If using Minikube, you can ssh into the node as follows:
+    - minikube ssh
+
+
+- Each node in the cluster runs Docker, Kubelet, and the kube-proxy
+The kubeclt command line sends HTTP REST requests to the Kubernetes API server running on master node.
+
+- If you ssh into the node you can see these running processes:
+
+    ps uax
+
+- Each node runs Docker, Kubelet, and kube-proxy.
+
+
+- To view all the nodes belonging to the cluster:
+
+kubectl get nodes
+
+
+- If using Minikube, there will be only one node.  This node acts as the Master and Worker node.
+- To view more details about a an object, in this case a node, kubectl describe can be used
+
+kubectl describe node minikube
+
+____________________________________________________________________
+Running Container in Kubernetes
+____________________________________________________________________
+- It is a best practice to define an YAML or JSON file to describe the container to be executed.
+- However, it can also be done at the command line for testing.
+
+- The following will create a pod.  This is of very limited use since its execution is not belonging
+  managed by a ReplicaSet. 
+
+kubectl run kubia --image=blgreco72dev/kubia --port=8080 
+
+
+- The above command will run the container within a Kubernetes pod.  A pod can contain multiple containers
+  but most often only one container is contained within a pod.
+
+- Each pod has its own IP address, host name, processes.
+- You cannot list containers but the current pods can be listed.
+
+kubectl get pods
+
+The following command can be used to view details of a specific pod:
+
+kubectl describe pod kubia
+
+- Next, ssh into the node and complete the following:
+
+minikube ssh
+
+- List all the containers running on the node in Docker:
+
+docker container ls
+
+- The container for which the Pod was created will be listed.
+- Next, view the logs of the container that was created:
+
+docker container logs 16e1
+
+- Next, view the images that are downloaded to the node:
+
+docker image ls
+
+- The image from which the container running in the pod will be listed.
+
+- Next, attempt to stop the running container to see if we can break $hit.
+
+docker container stop 16e1
+
+- After a few moments, the container will have been recreated (not just restarted) by Kubernetes.
+- Usually this monitoring is completed by a ReplicationController.  However, in the Web Client, there is no ReplicationController
+  listed as being created.  This is how it worked in older versions of docker.
+
+- Next, attempt to kill that bad boy by removing the container:
+
+docker container rm -f f5
+
+- Listing the containers shows that the container was created.
+
+- Let really be jerks and remove the image and then remove the container.
+
+docker image rm blgreco72dev/kubia -f
+docker container rm 892 -f 
+
+- If you list the images and containers, the image will have been re-pulled down and
+  a new container will have been created.
+
+- NOTE:  The Kubelet running on the node is responsible for making sure the container remains running in the pod.
+
+- Exit the node's shell:
+
+$ exit
+
+- Running the following command will show that the pod was restarted twice.  So, when the container will stopped
+  and removed above, Kubernetes recreates a new pod (not just the container).
+
+$ kubectl get pods
+$ kubectl describe pod kubia
+
+In the events section, it shows the pod was created due to restarting a failed container.
+
+
+- The following command will delete the pod.  Not that this will take a few seconds to complete:
+
+kubectl delete pod kubia
+
+____________________________________________________________________
+Access Api from outside of the Cluster
+____________________________________________________________________
+
+https://minikube.sigs.k8s.io/docs/handbook/accessing/#using-minikube-tunnel
+
+- The following will create a deployment and expose the service running within
+the container of the Kubernetes pod so it can be accessed from outside the 
+cluster.
+
+- Run in command console:
+-----------------------------------
+$ minikube start
+$ minikube dashboard
+
+- Run the following in another command console:
+-----------------------------------
+$ minikube tunnel
+
+- Run the following in another command console:
+$ kubectl create deployment kubia-deploy --image blgreco72dev/kubia
+
+- Run the following to view details about the deployment and created resources:
+-----------------------------------
+$ kubectl get deployments
+$ kubectl describe deployments kubia-deploy
+$ kubectl get pods
+$ kubectl describe pods kubia
+
+- Run the following to expose the pod created for the container within the deployment:
+-----------------------------------
+$ kubectl expose deployment kubia-deploy --type=LoadBalancer --port=8080
+
+- The above is telling Kubernetes to expose all pods created from the named deployment.
+
+$ kubectl get service
+
+
+NAME           TYPE           CLUSTER-IP     EXTERNAL-IP    PORT(S)          AGE
+kubernetes     ClusterIP      10.96.0.1      <none>         443/TCP          13m
+kubia-deploy   LoadBalancer   10.98.69.127   10.98.69.127   8080:32214/TCP   12m
+
+- Note the IP that has been assigned to External-IP for the service.
+
+$ curl 10.98.69.127:8080
+
+
+- Expecting the Node:
+----------------------------------
+
+- The minikube node has an ip address of:  172.17.0.3 as can be found
+  by running kubectl describe node minikube.  This is the IP address of
+  VM created running the single Kubernetes node.
+
+- The following will shh into the node and expect its state:
+
+$ minikube ssh
+
+- Once in the node, run the following to install curl command line:
+sudo apt-get update
+sudo apt-get install curl
+
+- Run the following to see the IP address of the VM:
+$ ip addr show
+
+eth0@if55: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue state UP group default 
+    link/ether 02:42:ac:11:00:03 brd ff:ff:ff:ff:ff:ff link-netnsid 0
+    inet 172.17.0.3/16 brd 172.17.255.255 scope global eth0
+
+- The IP address will match what was reported by kubectl describe minikube
+
+- Exit the ssh session.
+$ exit
+
+- Next, run the following to get the details of the pod running within the cluster:
+
+$ kubectl describe pod kubia
+
+Namespace:    default
+Priority:     0
+Node:         minikube/172.17.0.3
+Start Time:   Wed, 02 Sep 2020 11:57:59 -0400
+Labels:       app=kubia-deploy
+              pod-template-hash=5d9f894958
+Annotations:  <none>
+Status:       Running
+IP:           172.18.0.3
+
+The IP address of the pod is 172.18.0.3
+
+- ssh into the node again:
+$ minikube ssh 
+
+- Next, execute the following command to against the IP address of
+  the pod to call the service (api) running within the pod from a 
+  bash session within the node containing the pod:
+
+curl 172.18.0.3:8080
+
+- So the above is accessing the Pod from the bash command line on the node
+  that was ssh into.  The above IP address 172.18.0.3 is specific to the node
+  and can only be accessed from the node that was just ssh into.
+
+- The following are the details for the service created to expose the container
+  running from within the Pod:
+
+NAME           TYPE           CLUSTER-IP     EXTERNAL-IP    PORT(S)          AGE
+kubia-deploy   LoadBalancer   10.98.69.127   10.98.69.127   8080:32214/TCP   12m
+
+
+- The Cluster-IP can be used to access the Pod from another node within the cluster.
+- Minikube is only a one node cluster, but still logged into the node, this IP address
+  can also be used to call the service running within the Pods container:
+
+curl 10.98.69.127:8080
+  
+- So a microservice based solution should be designed to carefully to only expose
+  the services that should be allowed to be invoked from outside the cluster while
+  other more internal services should only communicate on the internal custer-ip.
+
+** Later a multi node cluster will be created using Google Cloud Services and more
+   details will be provided.
+
+
+minikube service kubia-deploy
+
+|-----------|--------------|-------------|-------------------------|
+| NAMESPACE |     NAME     | TARGET PORT |           URL           |
+|-----------|--------------|-------------|-------------------------|
+| default   | kubia-deploy |        8080 | http://172.17.0.3:32214 |
+|-----------|--------------|-------------|-------------------------|
+
+- 10.98.69.127:8080 (LoadBalancer)  -->   http://172.17.0.3:32214 (node) -->  172.18.0.3:8080(pod)
+
+-  This is the ip and port exposed        - This is the ip and port exposed     - This is the ip and port
+   by the load balancer.                    to allows the container service       of the internal pod.
+                                            for access outside of the cluster
+
+- These layers of indirection are needed since after exposing the pod to be called from outside the
+  node, the pod can be moved around or replicated to several different nodes.  So clients should 
+  never point to a service on a given node since it might be moved and therefore the ip and port
+  would change.  The ip and port of the LoadBalancer is static and load balances requests across
+  the nodes running the pod.
+
+$ minikube stop                             
+$ minikube delete
+
+- The following outlines what is happening when the above deployment was created 
+  using kubeclt from the command line:
+
+1.  The kubectl commands sends request to the Kubernetes HTTP REST Api.
+2.  A new Deployment is created within the cluster.
+3.  The Deployment creates a Replica Set identifying how the pods should be created to satisfy deployment.
+4.  The Replica Set coordinates the creation of a new Pod to run container by sending request to the Scheduler.
+5.  The Scheduler determines the node on which the container should be created and sends request to the Kubelet 
+    running on the node.
+6.  The Worker node uses Docker to pull the image from a repository and creates a Docker Container.
+7.  The Docker Container is associated with the Pod in which is executed.
+8.  Next, a service is created to expose the api running within the pod's docker container.  
+
+
+- However, this IP address is internal to the cluster can cannot be accessed from outside.
+- To expose the service running within a pod's container, a service must be created.
+- There are different types of services:  LoadBalancer and ClusterIP.  A ClusterIP exposes
+  the pod's container service(api) within the custer and a LoadBalancer will expose the
+  pod's container service(api) to outside the cluster.
+- LoadBalancer services creates an external load balancer with an exposed IP address to 
+  which external clients use to call a pod's container service(api).
+
+____________________________________________________________________
+Additional Kubernetes Cluster/Controllers/Services/Pods Notes
+____________________________________________________________________
+
+- The role of the ReplicationController is to replicate pods and to make sure they
+  remain running.  ReplicationController resource are not created very often are 
+  a ReplicaSet (a type of ReplicationController) is commonly used.  When the deployment
+  above was created, it created an associated ReplicaSet.
+
+- If a pod crashes or the node is stopped, this is detected by the ReplicaSet which
+  schedules another pod with the Scheduler to be created.  The Schedule determines 
+  the best worker node for the pod.  The Kubelet process running on the node is called
+  by the scheduler.  The Kubelet process then pulls the image and then creates the container
+  and associated pod. 
+
+- When the prod is relocated to a new node, the newly created pod will have a new IP address.
+- The IP address of the LoadBalancer Service is static (for the life of the service).  The 
+LoadBalancer Service keeps track of the nodes the exposed pods are running and forwards any
+requests to one of the nodes where the pod is running.
+
+** Services represent a static location for a group of one or more pods that all provide the same service.
+
+- The following will show the created ReplicaSet resources:
+$ kubectl get replicasets
+
+NAME                      DESIRED   CURRENT   READY   AGE
+kubia-deploy-5d9f894958   1         1         1       4h11m
+
+- Next, the ReplicaSet will be sent a request to have the number of running pods
+  scaled-up from one to 3.  Since these examples thus far are using minikube, there
+  is only one node so the following command can be executed:
+  
+$ kubectl scale --replicas=3 rs/kubia-deploy-5d9f894958 
+  
+  In the dashboard, you will see the number of pending nodes increase and two additions 
+  pods listed, but since this is a single node cluster, the pods will not be replicated.  
+  This is just a limitation of using minikube.  This will be revisited after setting up 
+  Kubernetes as a cloud service.
+
+
+- The following will list all the pods and the nodes to which the are running.  Knowing
+  which node a pod is running on is usually no of interest.
+
+ $ kubectl get pods -o wide
+
+NAME                            READY   STATUS    RESTARTS   AGE     IP           NODE       NOMINATED NODE   READINESS GATES
+kubia-deploy-5d9f894958-5hhrn   1/1     Running   0          4h29m   172.18.0.3   minikube   <none>           <none>
+
+
+And the following can be used to get details for a specific Pod:
+
+$ kubectl describe pod kubia-deploy-5d9f894958-5hhrn
+
+
+____________________________________________________________________
+Recreating the above using Declarative YAML
+____________________________________________________________________
+
+
+
+
+
+
+
+____________________________________________________________________
+Pod Details
+____________________________________________________________________
+
+____________________________________________________________________
+Controller Details
+____________________________________________________________________
+
+____________________________________________________________________
+Service Details
+____________________________________________________________________

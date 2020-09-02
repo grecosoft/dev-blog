@@ -1,0 +1,19 @@
+apiVersion: apps/v1
+kind: ReplicaSet
+metadata:
+ name: kubia-rs
+ labels:
+   app: kubia-app
+spec:
+ replicas: 1 # We'll get three identical pods
+ selector:
+   matchLabels:
+     tier: kubia-pod
+ template:
+   metadata:
+     labels:
+       tier: kubia-pod
+   spec:
+     containers:
+     - name: kubia-container
+       image: blgreco72dev/kubia
