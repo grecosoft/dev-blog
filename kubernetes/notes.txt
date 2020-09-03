@@ -350,18 +350,56 @@ $ kubectl describe pod kubia-deploy-5d9f894958-5hhrn
 
 
 ____________________________________________________________________
-Recreating the above using Declarative YAML
-____________________________________________________________________
-
-
-
-
-
-
-
-____________________________________________________________________
 Pod Details
 ____________________________________________________________________
+
+- Pods can contain multiple containers.  The containers within a pod will always run
+  on the same worker node.
+
+- This can be used if the containers must be located on the same machine.  This can be 
+  the case for inter-process communication or if the processes running within each of
+  the containers need to access a shared file.
+
+- Pods allows containers to be bound together and manage then as a single unit.
+- The containers within the pod can share certain resources and are not fully 
+  isolated as when running within Docker.  Kubernetes does this by sharing the
+  same set of Linux namespace between the two containers.  In Docker, each 
+  container has its own set of namespaces.
+
+- The containers within a Pod are all under the same network they share the same 
+  host name and network interfaces.
+
+- Each container running with in a Pod has a file systems isolated from each other.  
+  However, the containers can share files by using volumes.
+
+* Since the containers run within the same network namespace, they both have the
+  the same IP address so ports must be unique across all containers.
+
+- All Pods within a cluster are connected to the same software network and the
+  containers can call one another by using each others IP address.  However, 
+  this is not a good idea since Pods and be stopped, deleted, or moved and
+  will be assigned a new IP Address.  
+
+- All the containers comprising of a solution should not be all located within the
+  same Pod.  Only very closely related containers should be located within the same
+  Pod.
+
+  - Since all containers within a Pod will be executed on the same worker machine,
+    the will both consume resources on that node and can't be relocated to a node
+    with additional resources.  
+
+  - Another reason why two containers many not be best located with the same Pod
+    is that it make scaling harder.  In Kubernetes scaling (replication) is at the
+    Pod level.  So if the Pod contains multiple containers, then they must be scaled 
+    together at the same time.
+
+  - The main reason for having multiple containers in a Pod, is when one of the
+    containers contains the core process and the other is more of a "side-car"
+    process.  The side-car container execute code periodically (i.e.  check an API
+    for updates to data consumed by the main container process.)
+
+
+
 
 ____________________________________________________________________
 Controller Details
