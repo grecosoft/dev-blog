@@ -399,6 +399,104 @@ ____________________________________________________________________
     for updates to data consumed by the main container process.)
 
 
+------------------------------------
+Creating Resources using YAML
+------------------------------------
+- The above created resources (deployment) by using the command line.
+
+- This approach should not be used within production since the configuration 
+  is not documented.Instead resources can be defined in YAML.
+
+- If an existing resource exists within Kubernetes that was created at the
+  command line, the YAML can be generated.  This is also useful for viewing
+  a resources current configuration on the server.
+
+- The following command can be used to obtain an YAML definition for any
+  type of resource.  Below shows requesting YAML for the created Pod and
+  deployment.  The YAML can be very verbose and contains properties with
+  default values that would not typically be set.
+
+$ kubectl get pod
+
+NAME                            READY   STATUS    RESTARTS   AGE
+kubia-deploy-5d9f894958-smwgs   1/1     Running   0          40m
+
+$ kubectl get pod kubia-deploy-5d9f894958-smwgs -o yaml
+
+kubectl get deployment
+
+NAME           READY   UP-TO-DATE   AVAILABLE   AGE
+kubia-deploy   1/1     1            1           41m
+
+$ kubectl get deployment kubia-deploy -o yaml
+
+- The YAML file consists of the following sections:
+    - Metadata
+    - Specification
+    - Status
+
+- When defining a YAML file for a Pod, the Ports on which the container listens
+  can be specified.  This is just for documentation and has no bearing on how
+  the container or pod is created.
+
+- The following is going to delete the deployment resource that was created
+  by running the two command line calls and will rebuild the same resources
+  but defined within YAML.
+
+$ kubectl delete deployment deployment kubia-deploy
+$ kubectl delete service kubia-deploy
+
+
+Creating the Pod using YAML
+----------------------------------
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: kubia-pod
+spec:
+  containers:
+  - image: blgreco72dev/kubia
+    name: kubia
+    ports:
+    - containerPort: 8080
+      protocol: TCP
+
+
+
+- The following will submit the YAML
+$ kubectl create -f pod-resource.yaml 
+
+$ kubectl get pod
+
+NAME        READY   STATUS    RESTARTS   AGE
+kubia-pod   1/1     Running   0          101s
+
+- Applications running within containers typically write log files to standard
+out and standard error streams.
+
+- The logs for a givin pod can be see by issuing the following command:
+$ kubectl logs kubia-pod
+
+- If the Pod contains multiple containers, you must specify the container's name
+using the -c parameter.
+
+- A Pod's logs are deleted when the Pod no longer exists.  If logs need to be
+  persisted, they need to be written to a central error log store.
+
+Port Forwarding
+--------------------
+
+- The newly created pod cannot be accessed from outside the cluster since a service
+  has not yet been defined.  However, the Pod can be communicated with using port
+  forwarding to test the Pod.
+
+$ kubectl port-forward kubia-pod 8888:8080
+
+- In another terminal window, type the following to communicate with the container
+  running within the Pod.
+
+$ curl localhost:8888
 
 
 ____________________________________________________________________
