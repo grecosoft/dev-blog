@@ -1059,3 +1059,103 @@ CronJob
 ### Services
 ######################################################################################
 
+- Services device how one service can discover other services for which it needs to
+  communicate with as part of a software solution running in a Kubernetes cluster.
+
+- These communications may be between Pods with in the cluster and also from clients
+  existing outside of the cluster.
+
+- Services provide the following:
+    - Provides a Single point of Entry to a specific set of Pods all providing the same
+      service.  The set of Pods are normally created by a ReplicaSet.
+    - When a Service resource is created, it is given a static IP address and port.
+      This static address will remain as long as the Service is not deleted.
+    - The service knows the IP addresses of all the Pods running the component-service API
+      within the cluster.
+    - When the Service receives a request, it routes to one of the Pods.
+    - A service can also be configured with an external IP address that can be accessed by
+      client outside of the cluster.  Services are also created internal to the cluster so
+      services-apis running in other Pods can easily find other Pods service-apis to which
+      the need to communicate.  This allows the calling service-api to find another service-api
+      by one of the following two methods:
+
+        - Environment Variable
+        - DNS 
+
+    - A service also load balances across the Pods running the service-api.
+
+Creating a Service
+-------------------------------
+
+- Run the following to create a replica set consisting of three service instances that will
+  then have services created:
+
+$ kubectl create -f replica-set.yaml
+
+- The following command list list any defined services with the default namespace:
+- A service can be created using kubectl at the command line or defining an YAML definition file.
+
+$ kubectl get services
+
+- The only service should be the one for the REST API interface used by kubectl.
+
+NAME         TYPE           CLUSTER-IP      EXTERNAL-IP     PORT(S)          AGE
+kubernetes   ClusterIP      10.96.0.1       <none>          443/TCP          2d8h
+
+- Next, a service will be created to expose the service-api running within pods associated
+  with the kubia-set.
+
+$ kubectl expose replicaset kubia-set --type=LoadBalancer --port=8080
+
+$ kubectl get services
+
+NAME         TYPE           CLUSTER-IP      EXTERNAL-IP     PORT(S)          AGE
+kubernetes   ClusterIP      10.96.0.1       <none>          443/TCP          2d8h
+kubia-set    LoadBalancer   10.104.193.98   10.104.193.98   8080:32041/TCP   27s
+
+- Since the type of LoadBalancer was specified, the service will create an External-IP that
+  can be used to call the service from outside the cluster.
+
+- Running the following command several times shows how requests are load balanced and set
+  to different Node/Pods:
+
+curl 10.104.193.98:8080
+
+greco@ubuntupc:~/_dev/git/dev-blog/kubernetes$ curl 10.104.193.98:8080
+You've hit kubia-set-5ndp2
+greco@ubuntupc:~/_dev/git/dev-blog/kubernetes$ curl 10.104.193.98:8080
+You've hit kubia-set-pd6pb
+greco@ubuntupc:~/_dev/git/dev-blog/kubernetes$ curl 10.104.193.98:8080
+You've hit kubia-set-5ndp2
+greco@ubuntupc:~/_dev/git/dev-blog/kubernetes$ curl 10.104.193.98:8080
+You've hit kubia-set-5ndp2
+greco@ubuntupc:~/_dev/git/dev-blog/kubernetes$ curl 10.104.193.98:8080
+
+- Next, delete the service.
+
+$ kubectl delete service kubia-set
+
+Creating Service using YAML File:
+-----------------------------------------
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: kubia-srv
+spec:
+  ports:
+  - port: 80
+    targetPort: 8080
+  selector:
+    app: kubia
+
+$ kubectl create -f service.yaml 
+
+
+NAME         TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)   AGE
+kubernetes   ClusterIP   10.96.0.1      <none>        443/TCP   2d9h
+kubia-srv    ClusterIP   10.102.32.63   <none>        80/TCP    107s
+
+- In the above listing, the created service only has a Cluster-IP so it can only
+  be accessed from within the cluster.
+
