@@ -1,18 +1,19 @@
-____________________________________________________________________
-Installing Minikube
-____________________________________________________________________
+######################################################################################
+### Installing minikube
+######################################################################################
 
 https://phoenixnap.com/kb/install-minikube-on-ubuntu
 
-____________________________________________________________________
-Google Cloud Platform
-____________________________________________________________________
+######################################################################################
+### Google Cloud Platform
+######################################################################################
+
 Google Kubernetes Engine (GKE)
 
 
-____________________________________________________________________
-Basic Cluster Commands
---------------------------------------------------------------------
+######################################################################################
+### Basic Container Commands
+######################################################################################
 
 - To view information about the Kubernetes cluster:
 
@@ -42,9 +43,9 @@ kubectl get nodes
 
 kubectl describe node minikube
 
-____________________________________________________________________
-Running Container in Kubernetes
---------------------------------------------------------------------
+######################################################################################
+### Running Container in Kubernetes
+######################################################################################
 
 - It is a best practice to define an YAML or JSON file to describe the container to be executed.
 - However, it can also be done at the command line for testing.
@@ -127,9 +128,9 @@ In the events section, it shows the pod was created due to restarting a failed c
 
 kubectl delete pod kubia
 
-____________________________________________________________________
-Access Api from outside of the Cluster
---------------------------------------------------------------------
+######################################################################################
+### Access Api from outside of the cluster
+######################################################################################
 
 https://minikube.sigs.k8s.io/docs/handbook/accessing/#using-minikube-tunnel
 
@@ -174,8 +175,9 @@ kubia-deploy   LoadBalancer   10.98.69.127   10.98.69.127   8080:32214/TCP   12m
 $ curl 10.98.69.127:8080
 
 
-- Expecting the Node:
-----------------------------------
+######################################################################################
+### Expecting the Node
+######################################################################################
 
 - The minikube node has an ip address of:  172.17.0.3 as can be found
   by running kubectl describe node minikube.  This is the IP address of
@@ -296,9 +298,9 @@ $ minikube delete
 - LoadBalancer services creates an external load balancer with an exposed IP address to 
   which external clients use to call a pod's container service(api).
 
-____________________________________________________________________
-Additional Kubernetes Cluster/Controllers/Services/Pods Notes
---------------------------------------------------------------------
+######################################################################################
+### Additional Kubernetes Cluster/Controllers/Services/Pods Notes
+######################################################################################
 
 - The role of the ReplicationController is to replicate pods and to make sure they
   remain running.  ReplicationController resource are not created very often are 
@@ -350,9 +352,9 @@ And the following can be used to get details for a specific Pod:
 $ kubectl describe pod kubia-deploy-5d9f894958-5hhrn
 
 
-____________________________________________________________________
-Pod Details
---------------------------------------------------------------------
+######################################################################################
+### Pod Details
+######################################################################################
 
 - Pods can contain multiple containers.  The containers within a pod will always run
   on the same worker node.
@@ -400,9 +402,10 @@ Pod Details
     for updates to data consumed by the main container process.)
 
 
-------------------------------------
-Creating Resources using YAML
-------------------------------------
+######################################################################################
+### Creating Resources using YAML
+######################################################################################
+
 - The above created resources (deployment) by using the command line.
 
 - This approach should not be used within production since the configuration 
@@ -485,8 +488,9 @@ using the -c parameter.
 - A Pod's logs are deleted when the Pod no longer exists.  If logs need to be
   persisted, they need to be written to a central error log store.
 
-Port Forwarding
---------------------
+######################################################################################
+### Port Forwarding
+######################################################################################
 
 - The newly created pod cannot be accessed from outside the cluster since a service
   has not yet been defined.  However, the Pod can be communicated with using port
@@ -500,9 +504,9 @@ $ kubectl port-forward kubia-pod 8888:8080
 $ curl localhost:8888
 
 
-____________________________________________________________________
-Labels
---------------------------------------------------------------------
+######################################################################################
+### Labels
+######################################################################################
 
 - Labels are used to tag resources (such as pods) so they can be categorized 
   and referenced as a set.
@@ -570,9 +574,9 @@ $ kubectl get nodes -l prod=true
 - Within a Pod's resource definition file, the characteristics of the node to deploy the
   pod can be specified within the "spec" section with the property named "nodeSelector".
 
-____________________________________________________________________
-Resource Annotations
---------------------------------------------------------------------
+######################################################################################
+### Resource Annotations
+######################################################################################
 
 - Annotations are key/value pairs similar to labels but are not used to select resources.
 - There are are a from of metadata.
@@ -589,9 +593,9 @@ $ kubectl annotate pod kubia-pod somecompany.com/build="144"
 $ kubectl describe pod kubia-pod
 
 
-____________________________________________________________________
-Namespaces
---------------------------------------------------------------------
+######################################################################################
+### Namespaces
+######################################################################################
 
 - Namespaces are used to associate a name with a group of resources.
 
@@ -656,9 +660,9 @@ $ kubectl config set-context --current --namespace=receipt-solution
 $ kubectl config current-context
 
 
-____________________________________________________________________
-Replication and Controllers
---------------------------------------------------------------------
+######################################################################################
+### Replication and Controllers
+######################################################################################
 
 - Pods are usually not created directly.
 
@@ -707,10 +711,10 @@ Replication and Controllers
   a label is added or changed that results in the Pod matching the Controller's
   selector, it will then be managed by the controller.
 
+######################################################################################
+### Creating Replication Controller
+######################################################################################
   
- Creating Replication Controller
- ----------------------------------
-
 apiVersion: v1
 kind: ReplicationController
 metadata:
@@ -899,9 +903,9 @@ $ kubectl delete pod kubia-rc-m2rhj
 - After it is created, another Pod will be created since the ReplicationController specifies 
   that there should be 3 running pods.
 
---------------------------------------------------------------
----- ReplicaSet
---------------------------------------------------------------
+######################################################################################
+### ReplicaSet
+######################################################################################
 
 - This is another resource type similar to a ReplicationController.
 - The ReplicaSet now is mostly used instead of the ReplicationController.
@@ -949,5 +953,109 @@ kubia-set   3         3         3       2m23s
 
 $  kubectl describe rs
 
+- Delete the ReplicaSet and the currently managed nodes:
 
+$ kubectl delete rs kubia-set
+
+######################################################################################
+### DaemonSet
+######################################################################################
+
+- Allows running a specific Pod on all Nodes belonging to the cluster.
+
+- If a new Node is added to the Cluster, the DaemonSet will automatically create a new Pod 
+  instance on that node.
+
+- Also, a DaemonSet can be defined to run a Pod on a set of Nodes meeting a specific criteria.
+
+- The following is a definition for a DaemonSet:
+
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: daemon-test
+spec:
+  selector:
+    matchLabels:
+      app: daemon-test
+  template:
+    metadata:
+      labels:
+        app: daemon-test
+    spec:
+      nodeSelector:
+        disk: ssd
+      containers:
+      - name: main
+        image: blgreco72dev/kubia
+
+$ kubectl create -f daemon-set.yaml
+
+- At this point, zero Pods will have been created.  Currently there are no nodes
+  labeled with drive: ssd
+
+$ kubectl get pods
+
+No resources found in default namespace.
+
+- Next label some nodes with the needed label:
+
+$ kubectl label node minikube disk=ssd
+
+$ kubectl get pods
+NAME                READY   STATUS    RESTARTS   AGE
+daemon-test-jlszm   1/1     Running   0          31s
+
+
+######################################################################################
+### Jobs
+######################################################################################
+- The other controller types create a number of Pods and makes sure they
+  are always running to match the number of specified replica.
+
+- Jobs create a Pod for executing a container process.  After the process completes,
+  the Pod is removed.
+
+- If a node goes down when a Job is running, a Pod will be created on another node to continue
+  until the job successfully completes.
+
+- A Pod for a Job does not run indefinitely so the restartPolicy must be specified as OnFailure or Never.
+
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: batch-job
+spec:
+  template:
+    metadata:
+      labels:
+        app: batch-job
+    spec:
+      restartPolicy: OnFailure
+      containers:
+      - name: main
+        image: luksa/batch-job
+
+
+- After the job completes, the Pod will remain.  This allows you to check the logs if needed.
+
+
+$ kubectl get pods
+
+NAME                READY   STATUS    RESTARTS   AGE
+batch-job-tkcl6     1/1     Running   0          2m55s
+
+NAME                READY   STATUS      RESTARTS   AGE
+batch-job-tkcl6     0/1     Completed   0          2m35s
+
+
+----------------------------------------
+CronJob
+----------------------------------------
+- These are similar to Jobs but they can be scheduled to run on an interval.  
+
+
+######################################################################################
+### Services
+######################################################################################
 
