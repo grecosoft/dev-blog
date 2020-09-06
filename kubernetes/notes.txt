@@ -1246,4 +1246,247 @@ $ curl http://kubia-srv.default.svc.cluster.local
   routes to different pods belonging to the service.
 
 
+######################################################################################
+### Connecting to Services outside of Cluster
+######################################################################################
+
+- This is for the case where a service-api, running within the cluster, needs to
+  call a service-api residing outside of the cluster.  Not only can Service resources
+  be created for service-apis running within the cluster but for also service-apis
+  that are hosted outside the cluster.
+
+- When a service is created for a specific service-api running within a Pod's container,
+  the service provides a single static IP and port for a single point of entry.  Services
+  do not directly point to a Pod but point indirectly via the Endpoints resources.
+
+- The Endpoints resource contains a list if IP/ports for Pods's containing a specific service-api.
+- The Service resource then routes a request to its static IP/Port to one of the defined endpoints.
+
+- These endpoints can also be viewed:
+
+$ kubectl get endpoints
+
+NAME         ENDPOINTS                                            AGE
+kubernetes   172.17.0.3:8443                                      15h
+kubia-srv    172.18.0.10:8080,172.18.0.11:8080,172.18.0.12:8080   15h
+
+- Since Service Resources are not directly tied to Pod Resources but indirectly by Endpoint Resources,
+  Endpoints (to external service-apis) can be manually configured and associated with a Service Resource.
+
+- YAML files can be created to manually define the Service and Endpoint Resources.
+
+- The following defines a service that can be called on port 80:
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: external-services
+spec:
+  ports:
+  - port: 80
+
+$ kubectl create -f service-manual.yaml 
+
+$ kubectl get services
+
+NAME                TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)   AGE
+external-services   ClusterIP   10.101.84.49     <none>        80/TCP    39s
+kubernetes          ClusterIP   10.96.0.1        <none>        443/TCP   15h
+kubia-srv           ClusterIP   10.103.158.206   <none>        80/TCP    15h
+
+- Since the above service does not have a Pod selector, no Endpoint Resources are created and
+  therefore has to be done manually.
+
+
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: external-services
+subsets:
+  - addresses:
+    - ip: 199.16.172.225
+    - ip: 172.217.13.228
+    ports:
+    - port: 80
+
+$ kubectl get services
+
+NAME                TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)   AGE
+external-services   ClusterIP   10.97.41.239     <none>        80/TCP    7m46s
+
+- Now from a container contained within a Pod within the cluster, a request can be made
+  to IP 10.97.41.239 and the request will be forwarded to one of the endpoint entries.
+
+
+######################################################################################
+### Exposing Services to External Clients
+######################################################################################
+
+- This allows services-apis to be exposed so they can be accessed from outside the cluster.
+
+- There are different ways of exposing a service-api contained within a container of a Pod.
+
+- The first way to to define a service of type NodePort.  What this does is exposes the 
+  service-api on all nodes contained within the cluster (regardless if the node actually
+  has the pod containing the service-api).  The NodePort defines an Port that is exposed
+  by each node running within the cluster to which can be used to access the service using
+  the IP address of any node with the defined node-port to access the service.
+
+- Then the request to forward to one of the nodes within the cluster actually running a 
+  Pod containing a container with the service-api.  Also note that the static IP/Port of
+  the service can also be used to invoke the service-api.
+
+- NOTE:  If you are using a Kubernetes Cloud service, the IP addresses and ports of the
+  Nodes might need to be configured to alow access within the firewall.
+
+- Now, the service-api is technically exposed to external client using the defined port
+  on any of the nodes within the cluster.
+
+- The issue with the above configuration is that if you provide an external client with
+  one of the node's IP addresses and exposed port, used to the call the service-api, there
+  will be an issue if the Node is taking offline.
+
+- The next step is to place a load balancer in front of all the nodes so incoming requests
+  are routed to any of the cluster nodes.
+
+- Most cloud based Kubernetes hosted services provision such a load balancer and all that
+  is required to to specify LoadBalancer for the Service resource type.
+
+- The following is an overview:
+    - When a Pod is created to run a container's service-api, by default, it can only be
+      accessed from within the cluster from other Pod container service-apis.
+    
+    - Container service-apis can call the other service by using the IP address and Port
+      of one of the Nodes hosting a Pod with the service-api.  The issue with this is Pods
+      can be moved to other hosts after they are stopped or crashed or as they are scaled
+      up and down.  When this happens, the IP address associated with the Pod will not 
+      longer exist.
+    
+    - To address the prior issue, a Service can be defined for a specific service-api. The
+      service definition uses labels to determine the Pods that should be associated with
+      the created service.  After the service is created, it defines a static IP address 
+      known as the Cluster-IP that all clients can call (client inside the cluster) to
+      invoke the service-api.  The Service Resource will forward the request to one of the
+      Pods running a container hosting the service-api.  The client can then use the static
+      IP address and Port to call the service.  The client's can obtain the service static
+      PI address and Port using either Environment Variables defined by Kubernetes or the
+      DNS server that is running within the cluster.
+    
+    - The next case is for service-apis that need to be accessed from outside of the cluster.
+
+    - The first approach is to define a service as being a NodePort type.  This type of service
+      defines a Port that is exposed on each Node within the Cluster that can be used to call the
+      service-api running within a Pod's container.  Regardless if the Node called is actually
+      hosting the service-api, the call will be routed to one of the Pods's that is running the
+      service-api.  The defined port is accessible from outside the cluster by clients.  Clients,
+      can be given the IP address of any of the nodes and they call invoke the service using the
+      exposed port.  Note that this method will usually require opening the port of the firewall.
+
+    - The issue with the last item is that the client is hard-coded to a specific Node IP address.
+      If the node is taken offline, the client will no longer be able to access the service-api.
+      So the next step is to define a service of type LoadBalancer which contains the functionally
+      of a NodePort but also defines a Static IP address and Port that will load balance to any of
+      the internal nodes using the defined node-port.  When creating a LoadBalancer service the 
+      NodePorts are created automatically.  
+
+    - With the load balancer service defined, clients can now call the service using the static IP 
+      address and port of the LoadBalancer and the request will be routed to on of the internal nodes
+      defined within the cluster.  Then the request will be routed when received by the node to one
+      of the nodes actually hosting the service-api.
+
+    - The one issue with the above is that a service (and thus a separate static IP address and Port)
+      need to be create for each and every microservice.  
+
+    - So the next step in progresses to what is called an Ingress Resource which is documented next.
+
+  
+######################################################################################
+### Exposing Services externally using Ingress Resource
+######################################################################################
+
+- The issue with creating a LoadBalancer as discussed in the last section is that a LoadBalancer
+  service needs to be created for each service-api.  Each such created service will have its own
+  defined static IP address and Port.  
+
+- Ingress is the next logical step in that it exposes only a single static IP address and Port
+  that can be used to route requests to multiple internal defines service-apis running within automatically
+  Pod.
+
+- For this to function, an Ingress controller needs to be running within the cluster.  This is already
+  the case for most cloud hosted Kubernetes services.  But if using minikube, it must be enabled.
+
+$ minikube addons list
+$ minikube addons enable Ingress
+
+- The following assumes that all service resources have been deleted but there is a ReplicaSet
+  resource created with a replica count of 3.
+
+- First a NodePort service needs to be created using a label to select the running Pods in the
+  ReplicaSet.
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: kubia-nodeport
+spec:
+  type: NodePort
+  ports:  
+  - port: 80
+    targetPort: 8080
+    nodePort: 30123
+  selector:
+    app: kubia
+
+$ kubectl create -f ingress-node-port-service.yaml
+
+apiVersion: networking.k8s.io/v1beta1
+kind: Ingress
+metadata:
+  name: kubia
+spec:
+  rules:
+  - host: kubia.example.com
+    http:
+      paths:
+      - path: /
+        backend:
+          serviceName: kubia-nodeport
+          servicePort: 80
+
+$ kubectl create -f ingress-service.yaml 
+
+- Next, get the IP address of the Ingress controller:
+
+$ kubectl get ingress
+
+NAME    CLASS    HOSTS               ADDRESS      PORTS   AGE
+kubia   <none>   kubia.example.com   172.17.0.3   80      3m
+
+Add the following line to /etc/host file:
+
+172.17.0.3 kubia.example.com
+
+- Run the following several times and Ingress will route the calls to one of the
+ nodes within the cluster using port 30123 which then will be routed to one of
+ the node containing a Pod running the corresponding service-api.
+
+$ curl http://kubia.example.com
+
+- Above the path "/" was used.  But to add additional service-apis, multiple paths
+  can be defined, one for each node-port service (which is defined on a set of pods
+  having matching labels) then Ingress uses the path to determine the node-port 
+  service to call the dispatch the request.
+
+
+######################################################################################
+### Signaling when a pod is read to accept Connections
+######################################################################################
+- As soon as a pod is crated, Kubernetes assumes it is ready to receive connections.
+- However, this might not alway be the case.
+- A pod can signal when it is ready.
+- This is mostly needed during container service-api startup.
+
+  
+
+
 
