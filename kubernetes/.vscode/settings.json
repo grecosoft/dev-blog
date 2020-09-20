@@ -1,0 +1,22 @@
+{
+    "cSpell.words": [
+        "CPUs",
+        "Kubernetes",
+        "apiserver",
+        "cdrom",
+        "cgroupdriver",
+        "chmod",
+        "coredns",
+        "etcd",
+        "keygen",
+        "kubeadm",
+        "kubectl",
+        "kubelet",
+        "kubenodes",
+        "mkdir",
+        "nano",
+        "systemd",
+        "unmounting",
+        "vboxnet"
+    ]
+}

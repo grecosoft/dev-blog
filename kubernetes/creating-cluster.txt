@@ -1,0 +1,415 @@
+=============================================================================
+== Objective
+=============================================================================
+
+- Create a Kubernetes Cluster consisting of 4 nodes running on 
+  Ubuntu Server 20.04.1 LTS hosted as Virtual Box VMs.
+  
+- There will be one Master Node and 3 Worker nodes.
+- Calico will be used as the Pods Network implementation.
+- Kubernetes Desktop will be configured. 
+- kubeadm will be used to build each of the nodes.
+
+=============================================================================
+== Generate SSH key
+=============================================================================
+
+- Before creating the Ubuntu servers, a SSH Key will be generated
+  that will be copied to the created servers and used to SSH into
+  the servers from main Ubuntu Desktop OS shell.
+
+$ mkdir –p $HOME/.ssh
+$ chmod 0700 $HOME/.ssh
+$ cd .ssh
+
+$ ssh-keygen
+	name: kubenodes
+	phrase: (left blank)
+
+
+-- Resources:
+https://phoenixnap.com/kb/how-to-enable-ssh-on-ubuntu
+https://phoenixnap.com/kb/generate-setup-ssh-key-ubuntu
+
+
+
+=============================================================================
+== Virtual Box Common Settings for VMs
+=============================================================================
+
+- The following are the resources that will be allocated to each of the 
+  server VMs:
+
+2048 RAM
+10 Gig Drive
+2 CPUs
+
+- It was determined the the following Host Network must be created to allow 
+  all the VMs to communicate with each other over a network and to also allow
+  access via SSH from the Ubuntu shell:
+
+File|Host Network Manager
+	vboxnet1	
+	Enable Server
+	Enable DHCP
+
+-- After the above host network is created, it must be referenced by each
+   of the crated VMs.  
+VM Setting:
+	Networking:
+		Adapter1: NAS
+		Adapter2: Host-only Adapter
+			  vboxnet1
+
+
+=============================================================================
+== Creating Virtual Box VMs
+=============================================================================
+
+- The following will create and configure each of the Virtual Box VMs based
+  on the above specified resources to be allocated and configuration of the
+  needed network adapters.
+
+- The following will be the naming convention for each VM:
+	- M-Node1
+	- W-Node1
+	- W-Node2
+	- W-Node3
+
+- Create Virtual Box VMs for each of the above nodes by selecting Linux and Ubuntu (64-bit)
+  for each of the VMs types.  Also specify 2048 for RAM allocation.  Select the default for
+  all remaining settings.
+
+- After all the above VMs are created, configure each with the following settings:
+	- 2 CPUs  (System|Processor)
+	- Add Adapter2 Host-only Adapter (Network|Adapter2)
+
+
+
+=============================================================================
+== Installing Ubuntu Server on all VMs
+=============================================================================
+
+- Next, Ubuntu Server 20.04.1 LTS needs to be installed on each VM. 
+
+- A single VM could be created an cloned, but for this setup each
+  VM will be independently configured.  If a single VM is cloned,
+  then the kubeadm and other needed Kubernetes daemons should first
+  be installed before cloning.  
+
+- Complete the following steps on each crated Virtual Box VM:
+	- Install Ubuntu Server 20.04.1 LTS.  The ISO can be downloaded from the Web.
+	- Enable SSH Host 
+	- Restart the server
+	- From the shell on the host OS, copy the public SSH key to the server.  This
+	  allows logging in without have to provide a password each time.
+
+- After the above is completed, all the needed VMs running Ubuntu Server will be
+  ready to have a Kubernetes Cluster created using kubeadm.
+
+
+- Start the VM.  When prompted, select 	the downloaded ISO.
+
+- Select the default settings until the Profile setup screen is shown.
+	- Your Name: 				Kubernetes
+	- Your server's name:		m-node1
+	- Pick a username:			m-node1
+	- Choose a password:		m-node1
+	- Confirm your password:	m-node1
+
+- On the SSH Setup step, select Install OpenSSH Server.
+
+- Do not make any selections on the Featured Server Snaps.  Note that Docker is listed but
+  but it is best installed after the server is created since its configuration must be changed.
+
+- After the OS is installed, it will be rebooted.  Note that there will be an error saying that
+  Failed unmounting /cdrom.  Just enter return and the server will start.
+
+- Once the server is started, you will be presented with a login.  Enter the username and password
+  above.  Note if you don't see a login and the boot logs has been written, just press return.
+
+- After logging into the server, note the IP address for the server below and repeat the same
+  steps for each of the remaining 3 nodes using the VM name for the server name, username,
+  and password.
+
+
+Node		IP Address
+m-node1		192.168.57.16
+w-node1		192.168.57.17
+w-node2		192.168.57.18
+w-node3		192.168.57.19
+
+Next, execute the following commands (from the Host's shell) to copy the public SSH key generated
+previously, to each of the servers.  When prompted with question about continuing, type "yes".
+
+$ ssh-copy-id m-node1@192.168.57.16
+$ ssh-copy-id w-node1@192.168.57.17
+$ ssh-copy-id w-node2@192.168.57.18
+$ ssh-copy-id w-node3@192.168.57.19
+
+
+=============================================================================
+== Installing Kubernetes 
+=============================================================================
+
+- The following outlines each step to property configure kubernetes on each
+  server.  The steps completed are as follows:
+
+  - Install Docker
+  - Configure Docker to use systemd for cgroupdriver 
+  - Remove Swap
+  - Install: kubelet, kubeadm, and kubectl
+  - Initialize Kubernetes Cluster on Mater Node
+  - Install Calico Pod Networking
+  - Join each worker node to the cluster
+
+- The above steps can be executed by using SSH to log into each node from
+  the host operating system:
+
+  	$ ssh m-node1@192.168.57.16
+	$ ssh w-node1@192.168.57.17
+	$ ssh w-node2@192.168.57.18
+	$ ssh w-node3@192.168.57.19
+
+
+-----------------------------------------------------------------------------
+-- Install Docker (All Nodes)
+-----------------------------------------------------------------------------
+
+https://kubernetes.io/docs/setup/production-environment/container-runtimes/
+
+curl -fsSL https://get.docker.com -o get-docker.sh
+sudo sh get-docker.sh
+sudo usermod -aG docker $USER
+
+sudo touch /etc/docker/daemon.json 
+
+sudo bash -c 'cat > /etc/docker/daemon.json <<EOF
+{
+"exec-opts": ["native.cgroupdriver=systemd"],
+"log-driver": "json-file",
+"log-opts": {
+	"max-size": "100m"
+},
+"storage-driver": "overlay2"
+}
+EOF'
+
+sudo mkdir -p /etc/systemd/system/docker.service.d
+
+-----------------------------------------------------------------------------
+-- Removing Swap (All Nodes)
+-----------------------------------------------------------------------------
+
+sudo swapoff -a
+
+# Comment out the swap entry.
+
+sudo nano /etc/fstab
+
+# Save Changes
+
+
+
+-----------------------------------------------------------------------------
+-- Install Kubernetes Components (All Nodes)
+-----------------------------------------------------------------------------
+
+curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo apt-key add -
+
+cat <<EOF | sudo tee /etc/apt/sources.list.d/kubernetes.list
+deb https://apt.kubernetes.io/ kubernetes-xenial main
+EOF
+
+sudo apt-get update
+
+# Install components
+sudo apt-get install -y kubelet kubeadm kubectl
+
+# Hold version
+sudo apt-mark hold kubelet kubeadm kubectl
+
+# add to the end --cgroup-driver=systemd
+
+sudo nano /etc/systemd/system/kubelet.service.d/10-kubeadm.conf
+
+# Save changes
+
+sudo systemctl daemon-reload
+sudo systemctl restart docker
+
+
+- Before continuing, restart each of the nodes by running the following:
+
+shutdown --reboot now
+
+  form each of the (VMs shells).
+
+
+=============================================================================
+== Initialize Kubernetes Cluster / Calico Pod Networking (Master Node)
+=============================================================================
+
+- The following command will initialize the Kubernetes cluster on the master node.
+
+- Make sure the value of the --apiserver-advertise-address argument is the IP address
+  of the master node.
+
+$ sudo kubeadm init --apiserver-advertise-address=192.168.57.16 --pod-network-cidr=192.168.0.0/16
+
+- When the above command finishes, copy the output and place below.  This will be needed When
+  jointing the worker nodes to the cluster:
+
+-------------------------------------------------------------------------------------------------------------
+
+Your Kubernetes control-plane has initialized successfully!
+
+To start using your cluster, you need to run the following as a regular user:
+
+  mkdir -p $HOME/.kube
+  sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+  sudo chown $(id -u):$(id -g) $HOME/.kube/config
+
+You should now deploy a pod network to the cluster.
+Run "kubectl apply -f [podnetwork].yaml" with one of the options listed at:
+  https://kubernetes.io/docs/concepts/cluster-administration/addons/
+
+Then you can join any number of worker nodes by running the following on each as root:
+
+kubeadm join 192.168.57.16:6443 --token mwm9h3.k8mpwlikmmakneif \
+    --discovery-token-ca-cert-hash sha256:0e9368f736e988f795eddd1366e0842f4de60fd2efc31b1a82c51593f8219852 
+
+
+------------------------------------------------------------------------------------------------------------
+
+- Next, run the following commands so that the kubectl will point to the REST service
+  hosted by the master node.  The master node is where all the Kubernetes commands are
+  executed.  However, it is much easier to also point kubectl running on the host computer
+  so all kubernetes kubectl commands can be easily executed without having to log into one
+  of the master nodes.  This will be done in an upcoming step.
+
+
+- Run the following on the master node:
+
+mkdir -p $HOME/.kube
+sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+sudo chown $(id -u):$(id -g) $HOME/.kube/config
+
+
+- Next, run the following to view the current state of the cluster.
+
+- The following command will shows all pods running on the master node.
+  The output of the command is listed.
+
+kubectl get pods -n kube-system
+
+
+NAME                              READY   STATUS    RESTARTS   AGE
+coredns-f9fd979d6-9x8tf           0/1     Pending   0          7m7s
+coredns-f9fd979d6-px2tm           0/1     Pending   0          7m7s
+etcd-m-node1                      1/1     Running   0          7m16s
+kube-apiserver-m-node1            1/1     Running   0          7m16s
+kube-controller-manager-m-node1   1/1     Running   0          7m16s
+kube-proxy-n9mb9                  1/1     Running   0          7m7s
+kube-scheduler-m-node1            1/1     Running   0          7m16s
+
+
+- The above output shoes that the two coredns pods have not been created and have pending states.
+
+- Before these nodes will start, a Pod network implementation must be installed.  The Calico
+  pod network implementation has been selected for this cluster.  
+
+https://docs.projectcalico.org/getting-started/kubernetes/quickstart
+
+- Next, run the following two commands on the master node to install the pods providing an 
+  implementation of a Pod network:
+  
+kubectl create -f https://docs.projectcalico.org/manifests/tigera-operator.yaml
+kubectl create -f https://docs.projectcalico.org/manifests/custom-resources.yaml
+
+- After the above two commands complete, run the following to monitor the pods within
+  the calico-system namespace.  Once all pods are started, issue a control-c to stop.
+
+watch kubectl get pods -n calico-system
+
+
+NAME                                      READY   STATUS    RESTARTS   AGE
+calico-kube-controllers-6ddfb4769-b9ntw   1/1     Running   0          48s
+calico-node-wc2q7                         1/1     Running   0          48s
+calico-typha-548b85d659-schsj             1/1     Running   0          48s
+
+
+- Next, check the status of all the Pods within the kube-system to make sure that all
+  are running and ready:
+
+
+NAME                              READY   STATUS    RESTARTS   AGE
+coredns-f9fd979d6-9x8tf           1/1     Running   0          15m
+coredns-f9fd979d6-px2tm           1/1     Running   0          15m
+etcd-m-node1                      1/1     Running   0          15m
+kube-apiserver-m-node1            1/1     Running   0          15m
+kube-controller-manager-m-node1   1/1     Running   0          15m
+kube-proxy-n9mb9                  1/1     Running   0          15m
+kube-scheduler-m-node1            1/1     Running   0          15m
+
+
+- The overall status of the cluster can be viewed by running the following command:
+
+kubectl cluster-info
+
+- The following is the results:
+
+Kubernetes master is running at https://192.168.57.16:6443
+KubeDNS is running at https://192.168.57.16:6443/api/v1/namespaces/kube-system/services/kube-dns:dns/proxy
+
+
+- Next, the following command will list all nodes that are joined to the cluster and their status.  
+  Since worker nodes have not yet been joined, only the master node will be listed.
+
+
+kubectl get nodes 
+
+NAME      STATUS   ROLES    AGE   VERSION
+m-node1   Ready    master   19m   v1.19.2
+
+
+=============================================================================
+== Join Worker nodes to Kubernetes Cluster (All Worker Nodes)
+=============================================================================
+
+- The next step is to join all worker nodes to the cluster.  When initializing
+  the cluster on the master node, the output contained the command to be executed
+  to join a worker node to the cluster.
+
+- SSH into each of the 3 worker nodes and run the following.  On the host computer,
+  keep the SSH session open to the master node so the status of each worker node can
+  be viewed.
+
+- Run the following command on the master node SSH session:  
+
+watch kubectl get nodes
+
+- Now SSH into the each worker node and run the following command.  Move onto the next
+  worker node once the watch command shows the node is joined and ready.
+
+
+$ ssh w-node1@192.168.57.17
+$ ssh w-node2@192.168.57.18
+$ ssh w-node3@192.168.57.19
+
+sudo kubeadm join 192.168.57.16:6443 --token mwm9h3.k8mpwlikmmakneif \
+    --discovery-token-ca-cert-hash sha256:0e9368f736e988f795eddd1366e0842f4de60fd2efc31b1a82c51593f8219852 
+
+- Once the output of the watch nodes commands shows the following, the cluster has been 
+  correctly initialized and configured:
+
+NAME      STATUS   ROLES    AGE     VERSION
+m-node1   Ready    master   33m     v1.19.2
+w-node1   Ready    <none>   6m51s   v1.19.2
+w-node2   Ready    <none>   3m56s   v1.19.2
+w-node3   Ready    <none>   2m36s   v1.19.2
+
+
+=============================================================================
+== Installing Kubernetes Dashboard (Master Node)
+=============================================================================
