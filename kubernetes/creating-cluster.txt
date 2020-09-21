@@ -166,7 +166,7 @@ $ ssh-copy-id w-node3@192.168.57.19
 - The above steps can be executed by using SSH to log into each node from
   the host operating system:
 
-  	$ ssh m-node1@192.168.57.16
+  $ ssh m-node1@192.168.57.16
 	$ ssh w-node1@192.168.57.17
 	$ ssh w-node2@192.168.57.18
 	$ ssh w-node3@192.168.57.19
@@ -413,3 +413,56 @@ w-node3   Ready    <none>   2m36s   v1.19.2
 =============================================================================
 == Installing Kubernetes Dashboard (Master Node)
 =============================================================================
+
+https://www.replex.io/blog/how-to-install-access-and-add-heapster-metrics-to-the-kubernetes-dashboard
+
+- SSH into the master node and install the dashboard:
+kubectl apply -f https://raw.githubusercontent.com/kubernetes/dashboard/v2.0.0/aio/deploy/recommended.yaml
+
+- SSH into the Master node and execute the following:
+
+sudo cp /etc/kubernetes/admin.conf ~/
+chmod 777 admin.conf
+
+- Execute the following command on Host.  This will direct the kubectl so all commands are
+  sent to the master node that was just configured and to a local instance or another cluster.
+
+scp m-node1@192.168.57.16:/home/m-node1/admin.conf ~/.kube/config
+export KUBECONFIG=~/.kube/config
+
+- In another terminal window on the host computer, run the following.  This will start 
+  a proxy the will delate to the master node as specified by the KUBECONFIG environment
+  variable.
+
+kubectl proxy 
+
+- Open Web Browser and enter the following URL:
+http://localhost:8001/api/v1/namespaces/kubernetes-dashboard/services/https:kubernetes-dashboard:/proxy/.
+
+
+- Next a authentication token needs to be configured.  SSH into the master node and execute the following:
+
+kubectl create serviceaccount dashboard-admin-sa
+kubectl create clusterrolebinding dashboard-admin-sa --clusterrole=cluster-admin --serviceaccount=default:dashboard-admin-sa
+
+- Execute the following command to get the secrets:
+
+kubectl get secrets
+
+- Now obtain the access token associated with the secret:
+
+kubectl describe secret dashboard-admin-sa-token-gsnjk
+
+
+eyJhbGciOiJSUzI1NiIsImtpZCI6IlNqU3NCdVN4b3lFYWVVQ3VPNVI4V3VDUzRsbXJxTFViTG5fdXdTX0JmTXMifQ.eyJpc3MiOiJrdWJlcm5ldGVzL3NlcnZpY2VhY2NvdW50Iiwia3ViZXJuZXRlcy5pby9zZXJ2aWNlYWNjb3VudC9uYW1lc3BhY2UiOiJkZWZhdWx0Iiwia3ViZXJuZXRlcy5pby9zZXJ2aWNlYWNjb3VudC9zZWNyZXQubmFtZSI6ImRhc2hib2FyZC1hZG1pbi1zYS10b2tlbi1nc25qayIsImt1YmVybmV0ZXMuaW8vc2VydmljZWFjY291bnQvc2VydmljZS1hY2NvdW50Lm5hbWUiOiJkYXNoYm9hcmQtYWRtaW4tc2EiLCJrdWJlcm5ldGVzLmlvL3NlcnZpY2VhY2NvdW50L3NlcnZpY2UtYWNjb3VudC51aWQiOiJlMzdmMmFjMy02ZWIwLTQ1ZWMtOThjMC1hODgwZDI2ZTcwMWYiLCJzdWIiOiJzeXN0ZW06c2VydmljZWFjY291bnQ6ZGVmYXVsdDpkYXNoYm9hcmQtYWRtaW4tc2EifQ.HI-YhvFmDDa3R1_xD3lnzQq_uiVcOBFFv8pWaDJ6TolsvLL98euMcOB1iYivPf1w0RMFAC5IXoRmrPqUwsMrIrxUhWgHC1-38mavInFfudoNzBz-CePokJCr8wnD206YFk7SuBcw5g2f-uI1Bxb4wlTn8oMG6sU1fVLTIKw-lAIDAky6XJNxLSiVMETo_SgZc9782bftAAluAJVUErGjbsU90-xJcKhBAC6Kxv1EOwxsPa0y6QsybRGy16Vv9eT81rs7dB4XvCtS79PX7jFQd7u_jz1xcphA1EdQfVsqC0NkKJHPL-JGVq-_F5vgb16wBHJfI8qEakVGCyDCSfdGPQ
+
+
+- Copy the above token into the input field of the dashboard.
+
+
+=============================================================================
+== Other resource
+=============================================================================
+
+
+https://unix.stackexchange.com/questions/36540/why-am-i-still-getting-a-password-prompt-with-ssh-with-public-key-authentication
