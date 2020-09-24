@@ -81,7 +81,8 @@ VM Setting:
   all remaining settings.
 
 - After all the above VMs are created, configure each with the following settings:
-	- 2 CPUs  (System|Processor)
+  - 2048 RAM
+	- 3 CPUs  (System|Processor)
 	- Add Adapter2 Host-only Adapter (Network|Adapter2)
 
 
@@ -134,18 +135,18 @@ VM Setting:
 
 
 Node		IP Address
-m-node1		192.168.57.16
-w-node1		192.168.57.17
-w-node2		192.168.57.18
-w-node3		192.168.57.19
+m-node1		192.168.57.27
+w-node1		192.168.57.28
+w-node2		192.168.57.29
+w-node3		192.168.57.30
 
 Next, execute the following commands (from the Host's shell) to copy the public SSH key generated
 previously, to each of the servers.  When prompted with question about continuing, type "yes".
 
-$ ssh-copy-id m-node1@192.168.57.16
-$ ssh-copy-id w-node1@192.168.57.17
-$ ssh-copy-id w-node2@192.168.57.18
-$ ssh-copy-id w-node3@192.168.57.19
+$ ssh-copy-id m-node1@192.168.57.27
+$ ssh-copy-id w-node1@192.168.57.28
+$ ssh-copy-id w-node2@192.168.57.29
+$ ssh-copy-id w-node3@192.168.57.30
 
 
 =============================================================================
@@ -166,10 +167,10 @@ $ ssh-copy-id w-node3@192.168.57.19
 - The above steps can be executed by using SSH to log into each node from
   the host operating system:
 
-  $ ssh m-node1@192.168.57.16
-	$ ssh w-node1@192.168.57.17
-	$ ssh w-node2@192.168.57.18
-	$ ssh w-node3@192.168.57.19
+  $ ssh m-node1@192.168.57.27
+	$ ssh w-node1@192.168.57.28
+	$ ssh w-node2@192.168.57.29
+	$ ssh w-node3@192.168.57.30
 
 
 -----------------------------------------------------------------------------
@@ -178,8 +179,8 @@ $ ssh-copy-id w-node3@192.168.57.19
 
 https://kubernetes.io/docs/setup/production-environment/container-runtimes/
 
-curl -fsSL https://get.docker.com -o get-docker.sh
-sudo sh get-docker.sh
+curl -fsSL https://get.docker.com -o get-docker.sh 
+sudo sh get-docker.sh 
 sudo usermod -aG docker $USER
 
 sudo touch /etc/docker/daemon.json 
@@ -229,9 +230,15 @@ sudo apt-get install -y kubelet kubeadm kubectl
 # Hold version
 sudo apt-mark hold kubelet kubeadm kubectl
 
-# add to the end --cgroup-driver=systemd
-
 sudo nano /etc/systemd/system/kubelet.service.d/10-kubeadm.conf
+
+https://medium.com/@kanrangsan/how-to-specify-internal-ip-for-kubernetes-worker-node-24790b2884fd
+
+Add  --node-ip=192.168.57.27 --cgroup-driver=systemd to KUBELET_KUBECONFIG_ARGS
+Add  --node-ip=192.168.57.28 --cgroup-driver=systemd to KUBELET_KUBECONFIG_ARGS
+Add  --node-ip=192.168.57.29 --cgroup-driver=systemd to KUBELET_KUBECONFIG_ARGS
+Add  --node-ip=192.168.57.30 --cgroup-driver=systemd to KUBELET_KUBECONFIG_ARGS
+
 
 # Save changes
 
@@ -243,7 +250,7 @@ sudo systemctl restart docker
 
 shutdown --reboot now
 
-  form each of the (VMs shells).
+form each of the (VMs shells).
 
 
 =============================================================================
@@ -255,14 +262,14 @@ shutdown --reboot now
 - Make sure the value of the --apiserver-advertise-address argument is the IP address
   of the master node.
 
-$ sudo kubeadm init --apiserver-advertise-address=192.168.57.16 --pod-network-cidr=192.168.0.0/16
+$ sudo kubeadm init --apiserver-advertise-address=192.168.57.27 --pod-network-cidr=10.244.0.0/16
 
 - When the above command finishes, copy the output and place below.  This will be needed When
   jointing the worker nodes to the cluster:
 
 -------------------------------------------------------------------------------------------------------------
 
-Your Kubernetes control-plane has initialized successfully!
+our Kubernetes control-plane has initialized successfully!
 
 To start using your cluster, you need to run the following as a regular user:
 
@@ -276,8 +283,8 @@ Run "kubectl apply -f [podnetwork].yaml" with one of the options listed at:
 
 Then you can join any number of worker nodes by running the following on each as root:
 
-kubeadm join 192.168.57.16:6443 --token mwm9h3.k8mpwlikmmakneif \
-    --discovery-token-ca-cert-hash sha256:0e9368f736e988f795eddd1366e0842f4de60fd2efc31b1a82c51593f8219852 
+sudo kubeadm join 192.168.57.27:6443 --token q5cnrb.uxq4ddyv3htp7lg4 \
+    --discovery-token-ca-cert-hash sha256:640a6ad77cfcee7cdcadaab38d79914aff2b9ea2f560e2c87f8d01ba177f1125 
 
 
 ------------------------------------------------------------------------------------------------------------
@@ -298,6 +305,9 @@ sudo chown $(id -u):$(id -g) $HOME/.kube/config
 
 - Next, run the following to view the current state of the cluster.
 
+kubectl cluster-info
+kubectl get nodes -o wide
+
 - The following command will shows all pods running on the master node.
   The output of the command is listed.
 
@@ -316,8 +326,11 @@ kube-scheduler-m-node1            1/1     Running   0          7m16s
 
 - The above output shoes that the two coredns pods have not been created and have pending states.
 
-- Before these nodes will start, a Pod network implementation must be installed.  The Calico
-  pod network implementation has been selected for this cluster.  
+- Before these nodes will start, a Pod network implementation must be installed.
+
+---------------------------------------------------------------------------------------------
+
+Calico
 
 https://docs.projectcalico.org/getting-started/kubernetes/quickstart
 
@@ -332,12 +345,27 @@ kubectl create -f https://docs.projectcalico.org/manifests/custom-resources.yaml
 
 watch kubectl get pods -n calico-system
 
-
 NAME                                      READY   STATUS    RESTARTS   AGE
 calico-kube-controllers-6ddfb4769-b9ntw   1/1     Running   0          48s
 calico-node-wc2q7                         1/1     Running   0          48s
 calico-typha-548b85d659-schsj             1/1     Running   0          48s
 
+---------------------------------------------------------------------------------------------
+
+Flannel
+
+https://github.com/coreos/flannel#flannel
+
+- Next, run the following two commands on the master node to install the pods providing an 
+  implementation of a Pod network:
+
+kubectl apply -f https://raw.githubusercontent.com/coreos/flannel/master/Documentation/kube-flannel.yml
+
+- Running the following command will show Flannel pod:
+
+kubectl get pods -n kube-system
+
+----------------------------------------------------------------------------------------------
 
 - Next, check the status of all the Pods within the kube-system to make sure that all
   are running and ready:
@@ -359,8 +387,10 @@ kubectl cluster-info
 
 - The following is the results:
 
-Kubernetes master is running at https://192.168.57.16:6443
-KubeDNS is running at https://192.168.57.16:6443/api/v1/namespaces/kube-system/services/kube-dns:dns/proxy
+Kubernetes master is running at https://192.168.57.27:6443
+KubeDNS is running at https://192.168.57.27:6443/api/v1/namespaces/kube-system/services/kube-dns:dns/proxy
+
+To further debug and diagnose cluster problems, use 'kubectl cluster-info dump'.
 
 
 - Next, the following command will list all nodes that are joined to the cluster and their status.  
@@ -393,21 +423,41 @@ watch kubectl get nodes
   worker node once the watch command shows the node is joined and ready.
 
 
-$ ssh w-node1@192.168.57.17
-$ ssh w-node2@192.168.57.18
-$ ssh w-node3@192.168.57.19
+$ ssh w-node1@192.168.57.21
+$ ssh w-node2@192.168.57.23
+$ ssh w-node3@192.168.57.22
 
-sudo kubeadm join 192.168.57.16:6443 --token mwm9h3.k8mpwlikmmakneif \
-    --discovery-token-ca-cert-hash sha256:0e9368f736e988f795eddd1366e0842f4de60fd2efc31b1a82c51593f8219852 
 
-- Once the output of the watch nodes commands shows the following, the cluster has been 
+sudo kubeadm join 192.168.57.20:6443 --token ticsxz.rz2dx9cj7o1l47ps \
+    --discovery-token-ca-cert-hash sha256:b31e7a5d3556dbcaf361be320fec485217b72bb7143f8cadcd2639b6891b91c6 
+
+- Once the output of the get-nodes commands shows the following, the cluster has been 
   correctly initialized and configured:
 
-NAME      STATUS   ROLES    AGE     VERSION
-m-node1   Ready    master   33m     v1.19.2
-w-node1   Ready    <none>   6m51s   v1.19.2
-w-node2   Ready    <none>   3m56s   v1.19.2
-w-node3   Ready    <none>   2m36s   v1.19.2
+kubectl get nodes -o wide
+
+NAME      STATUS   ROLES    AGE     VERSION   INTERNAL-IP     EXTERNAL-IP   OS-IMAGE             KERNEL-VERSION     CONTAINER-RUNTIME
+m-node1   Ready    master   32m     v1.19.2   192.168.57.20   <none>        Ubuntu 20.04.1 LTS   5.4.0-48-generic   docker://19.3.13
+w-node1   Ready    <none>   20m     v1.19.2   192.168.57.21   <none>        Ubuntu 20.04.1 LTS   5.4.0-48-generic   docker://19.3.13
+w-node2   Ready    <none>   4m22s   v1.19.2   192.168.57.23   <none>        Ubuntu 20.04.1 LTS   5.4.0-48-generic   docker://19.3.13
+w-node3   Ready    <none>   2m43s   v1.19.2   192.168.57.22   <none>        Ubuntu 20.04.1 LTS   5.4.0-48-generic   docker://19.3.13
+
+=============================================================================
+== POINTING HOST TO CLUSTER
+=============================================================================
+- Run the following command so that kubectl will point to the cluster When executed:
+
+- SSH into the Master node and execute the following:
+
+sudo cp /etc/kubernetes/admin.conf ~/
+sudo chmod 777 admin.conf
+
+- Execute the following command on Host.  This will direct the kubectl so all commands are
+  sent to the master node that was just configured and to a local instance or another cluster.
+
+scp m-node1@192.168.57.27:/home/m-node1/admin.conf ~/.kube/config
+export KUBECONFIG=~/.kube/config
+
 
 
 =============================================================================
@@ -419,16 +469,6 @@ https://www.replex.io/blog/how-to-install-access-and-add-heapster-metrics-to-the
 - SSH into the master node and install the dashboard:
 kubectl apply -f https://raw.githubusercontent.com/kubernetes/dashboard/v2.0.0/aio/deploy/recommended.yaml
 
-- SSH into the Master node and execute the following:
-
-sudo cp /etc/kubernetes/admin.conf ~/
-chmod 777 admin.conf
-
-- Execute the following command on Host.  This will direct the kubectl so all commands are
-  sent to the master node that was just configured and to a local instance or another cluster.
-
-scp m-node1@192.168.57.16:/home/m-node1/admin.conf ~/.kube/config
-export KUBECONFIG=~/.kube/config
 
 - In another terminal window on the host computer, run the following.  This will start 
   a proxy the will delate to the master node as specified by the KUBECONFIG environment
@@ -451,10 +491,10 @@ kubectl get secrets
 
 - Now obtain the access token associated with the secret:
 
-kubectl describe secret dashboard-admin-sa-token-gsnjk
+kubectl describe secret dashboard-admin-sa-token-2hdj7
 
 
-eyJhbGciOiJSUzI1NiIsImtpZCI6IlNqU3NCdVN4b3lFYWVVQ3VPNVI4V3VDUzRsbXJxTFViTG5fdXdTX0JmTXMifQ.eyJpc3MiOiJrdWJlcm5ldGVzL3NlcnZpY2VhY2NvdW50Iiwia3ViZXJuZXRlcy5pby9zZXJ2aWNlYWNjb3VudC9uYW1lc3BhY2UiOiJkZWZhdWx0Iiwia3ViZXJuZXRlcy5pby9zZXJ2aWNlYWNjb3VudC9zZWNyZXQubmFtZSI6ImRhc2hib2FyZC1hZG1pbi1zYS10b2tlbi1nc25qayIsImt1YmVybmV0ZXMuaW8vc2VydmljZWFjY291bnQvc2VydmljZS1hY2NvdW50Lm5hbWUiOiJkYXNoYm9hcmQtYWRtaW4tc2EiLCJrdWJlcm5ldGVzLmlvL3NlcnZpY2VhY2NvdW50L3NlcnZpY2UtYWNjb3VudC51aWQiOiJlMzdmMmFjMy02ZWIwLTQ1ZWMtOThjMC1hODgwZDI2ZTcwMWYiLCJzdWIiOiJzeXN0ZW06c2VydmljZWFjY291bnQ6ZGVmYXVsdDpkYXNoYm9hcmQtYWRtaW4tc2EifQ.HI-YhvFmDDa3R1_xD3lnzQq_uiVcOBFFv8pWaDJ6TolsvLL98euMcOB1iYivPf1w0RMFAC5IXoRmrPqUwsMrIrxUhWgHC1-38mavInFfudoNzBz-CePokJCr8wnD206YFk7SuBcw5g2f-uI1Bxb4wlTn8oMG6sU1fVLTIKw-lAIDAky6XJNxLSiVMETo_SgZc9782bftAAluAJVUErGjbsU90-xJcKhBAC6Kxv1EOwxsPa0y6QsybRGy16Vv9eT81rs7dB4XvCtS79PX7jFQd7u_jz1xcphA1EdQfVsqC0NkKJHPL-JGVq-_F5vgb16wBHJfI8qEakVGCyDCSfdGPQ
+eyJhbGciOiJSUzI1NiIsImtpZCI6IjNyWkp6TjZ5cHJIbmZycVF1U3g3ckFHZmFVRnU5SFdBTjQ2aUVQZkZiSVUifQ.eyJpc3MiOiJrdWJlcm5ldGVzL3NlcnZpY2VhY2NvdW50Iiwia3ViZXJuZXRlcy5pby9zZXJ2aWNlYWNjb3VudC9uYW1lc3BhY2UiOiJkZWZhdWx0Iiwia3ViZXJuZXRlcy5pby9zZXJ2aWNlYWNjb3VudC9zZWNyZXQubmFtZSI6ImRhc2hib2FyZC1hZG1pbi1zYS10b2tlbi0yaGRqNyIsImt1YmVybmV0ZXMuaW8vc2VydmljZWFjY291bnQvc2VydmljZS1hY2NvdW50Lm5hbWUiOiJkYXNoYm9hcmQtYWRtaW4tc2EiLCJrdWJlcm5ldGVzLmlvL3NlcnZpY2VhY2NvdW50L3NlcnZpY2UtYWNjb3VudC51aWQiOiIwYzljMjM3Yi0zZWE1LTRiNzEtYWMxNi1lMDliMWNmNTA3ZDQiLCJzdWIiOiJzeXN0ZW06c2VydmljZWFjY291bnQ6ZGVmYXVsdDpkYXNoYm9hcmQtYWRtaW4tc2EifQ.ycQ_pfvAA51cUt0JRqqRHSwK8giWIqn6jwBfAdnqRjKqzvgaFU1yAKmQA_UdAac2l9lbPzUb5AR4-OKjxKn1p3W3Q9NDLNYigiZ-yNH8O0eT8k5-c0s36qN56S0YvNA1xNx4bW7NaRT-9B9DGWb2uIbM_9dTlHtiyxPFyfMBHa4hs2t-Ow0OP5fcjlhUfNjIRcVkcwmeRI1HcjhtDmAWjiX21buNplImGI-VldAPxhWwubsOjLczptLYkSXbZh15O-wZWAWUtOxOxk11iYgDDmof3GOsjh094mpq1TXK3NZ45Awt7Jp1D25em4DhkeT_fdfo7HEMyv36SxAZlP3z_A
 
 
 - Copy the above token into the input field of the dashboard.

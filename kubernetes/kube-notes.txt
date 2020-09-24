@@ -1,0 +1,473 @@
+
+- With the Cluster in place the following are notes on creating the different type of resources.
+
+- These notes will be used to validate the configuration of the created Kubernetes Cluster.  
+
+- If any issues are found in the configuration (which there was), the creating-cluster notes 
+  will be updated to make the process repeatable.
+
+
+- The following execute commands from the Host computer running the VMs within VirtualBox.
+
+
+--------------------------------------------------------------------------------------------------
+
+- The following will create a container within a Kubernetes pod:
+
+kubectl run db --image mongo
+
+- The following will show the created Pod.
+
+kubectl get pods
+
+- To see additional details about the pod, append -o wide
+
+kubectl get pods -o wide
+
+NAME   READY   STATUS    RESTARTS   AGE    IP              NODE      NOMINATED NODE   READINESS GATES
+db     1/1     Running   0          118s   192.168.138.3   w-node3   <none>           <none>
+
+
+The following shows there was a single pod created to run the container on node 3.
+
+- It can be useful to run quick shell commands within the context of a pod.  This can be done
+  as the following shows:
+
+kubectl exec db -- ps aux
+
+USER         PID %CPU %MEM    VSZ   RSS TTY      STAT START   TIME COMMAND
+mongodb        1  0.6  4.9 1587332 100476 ?      Ssl  17:02   0:01 mongod --bind_ip_all
+root          50  0.0  0.1  34400  2900 ?        Rs   17:07   0:00 ps aux
+
+- The above does the following:
+    - Finds a pod named db
+    - Runs the command within the first container running within the pod.
+    - If the pod contains multiple containers, the -c can be used to specify the name
+      of the container in which the command should be executed.
+
+- An interactive session also can be created as follows to execute a series of commands:
+
+kubectl exec -it db -- sh
+
+- Then at the login prompt any bash command can be executed.
+
+- For example, the following will show the linux distribution on which the container is based:
+
+cat /etc/*-release
+
+- This is not the linux distribution of the VM running the pod but the version on which the
+  container is based.
+
+- Typing exit will return to the host's shell session.
+
+- Logs for a given pod's containers can viewed:
+
+kubectl logs db
+
+- The "-c" argument can be used to specify a specific container within the pod.
+
+- The "--follow" switch can be use to the the log results in real time.
+
+--------------------------------------------------------------------------------------------------
+
+- Kubernetes will assure that a given pod will remain running.
+
+kubectl get pods -o wide
+
+NAME   READY   STATUS    RESTARTS   AGE     IP              NODE      NOMINATED NODE   READINESS GATES
+db     1/1     Running   0          5h49m   192.168.138.3   w-node3   <none>           <none>
+
+- The above shows that the db container is running on w-node3.
+- SSH into the w-node3 server and list the running containers.
+
+ssh w-node3@192.168.57.19
+docker container ls
+
+CONTAINER ID        IMAGE                  COMMAND                  CREATED             STATUS              PORTS               NAMES
+b46b199b6eab        mongo                  "docker-entrypoint.s…"   6 hours ago         Up 6 hours                              k8s_db_db_default_3d3ed867-4f14-4ecf-924d-c6d4b4122bf2_0
+
+Next, stop the container as following and relist the running containers:
+
+docker container stop b46b199b6eab
+docker container ls
+
+CONTAINER ID        IMAGE                  COMMAND                  CREATED             STATUS              PORTS               NAMES
+4e7023aeffbb        mongo                  "docker-entrypoint.s…"   4 seconds ago       Up 3 seconds                            k8s_db_db_default_3d3ed867-4f14-4ecf-924d-c6d4b4122bf2_1
+
+- The above shows that a new mongo container was automatically created and started.  Note that this is a new container
+  and not just restarting the stopped container.  The container has a new ID value.
+
+- On the worker node a process called kubelet runs and is responsible for assuring any containers it was asked to
+  create remain running.
+
+- Run the following to list all process running on w-node3 using the ssh session:
+
+ps -A
+
+
+   2565 ?        00:00:37 calico-typha
+   3502 ?        00:12:50 kubelet
+ 103282 ?        00:00:00 containerd-shim
+
+- Back at the host terminal, type the following to delete the db pod:
+
+kubectl delete pod db
+kubectl get pods
+
+- Back at the SSH for w-node3, list the containers and the once running mongo container has been stopped and deleted:
+
+docker container ls -a
+
+- The high-level steps for deleting a pod is:
+    -> Sends a TERM signal to the processing running within the pod's containers.
+    -> Waits 30s for the process to exist.  (this can be configured withing the yaml)
+    -> If the process does not exit, it is sent the KILL signal.
+
+---------------------------------------------------------------------------------------------
+
+- A pod can execute multiple containers.  The containers within the Pod always run on the same node.
+- This is not used all that often but is for the case where one container supports the operation of
+  another.  
+
+- The processes within the containers can communicate using local host and share files written 
+  to shared storage.
+
+kubectl create -f ./pod/go-demo-2.yml 
+
+- The above will create a pod running two containers.
+
+kubectl get -f ./pod/go-demo-2.yml
+
+NAME        READY   STATUS    RESTARTS   AGE
+go-demo-2   2/2     Running   0          84s
+
+The ready column shows that the two containers are ready.
+
+- Detailed information about a pod's containers can be retrieved as follows:
+
+kubectl get -f ./pod/go-demo-2.yml  -o json
+
+- In Kubernetes, Pods are considered the smallest unit of deployment and not the container.
+- Commands are scoped to pods and not to individual containers.
+
+- Since the smallest unit is a Pod, when a Pod is scaled all containers defined within the
+  pod are equally scaled.  
+
+- Unless there is a close relationship between the containers they should be located within
+  independent pods so they can be scaled independently.
+
+kubectl delete -f ./pod/go-demo-2.yml 
+
+---------------------------------------------------------------------------------------------
+
+- When a process within a container crashes and stops running, the container hosting the process
+  will also stop.  kubelet will detect this and restart the container by created a brand new 
+  container.  The existing container will not be restarted.
+
+- However, a Pod's container can communicate with kubelet using health checks to indicate that
+  the container should be restarted.  This is called a Liveness Probe.
+
+- A pod's container can also define a Readiness Probe to indicate when the container is ready
+  to start accepting requests.  The Kubernetes Service resource type will only send requests 
+  to a pod if the containers are ready to receive requests.
+
+- A probe is most often a HTTP Get request.  The URL is specified within the definition file
+  at the container level.  If the URL called is not successful, the container is restarted.
+- When specifying the URL, the host should be be specified.  It is by default the IP address
+  of the Pod.  Along with the URL, the port is specified on which the container is bound.
+
+- The following will create a Pod containing a container that will fail the Liveness Probe
+  since the URL being called does not exit:
+
+kubectl create -f ./pod/go-demo-2-health.yml
+
+- The following command "describe" will return additional details about pods defined
+  within the specified definition file:
+
+kubectl describe -f ./pod/go-demo-2-health.yml
+
+
+-------------------------------------------------------------------------------------------
+
+- Normally, pods are not created directly.  While Kubernetes does check to make sure a 
+  Pod's container(s) remain running, it does not assure that a Pod will always remain 
+  running.  Kubernetes can move Pods to other nodes by deleting the pod on one node and
+  creating a new one on another node.  
+
+- However, if Pods are created directly and a node on which it is running is taken offline,
+  the pod will not be created on another node unless a higher level Controller resources is
+  defined.
+
+- This can be observed by creating a Pod as follows:
+    kubectl run db --image mongo
+
+- Execute the following to determine the Node on which the Pod is running:
+
+    kubectl get pods -o wide
+
+NAME   READY   STATUS    RESTARTS   AGE   IP              NODE      NOMINATED NODE   READINESS GATES
+db     1/1     Running   0          79s   192.168.138.6   w-node3   <none>           <none>
+
+- Next, SSH into w-node3 node and shut it down:
+
+    sudo shutdown now
+
+The run the following again to view the status of the Pod:
+
+    watch kubectl get pods -o wide
+
+- Well, golly gee, it still indicates that the container is running and ready.  This I guess makes
+  since given that the Pod was created directory and not by using a higher level Controller construct.
+  When a Controller is used to specify a Pod, the Controller is responsible for monitoring that the 
+  Pod remains running.  A Controller is operates at the Custer level and will recreate the Pod on 
+  another available Pod.
+
+- For shit and giggles, lets see what happens if we try to create the Pod again.  My guess is it will
+  will do nothing since Kubernetes already thinks the Pod is running.
+
+   kubectl run db --image mongo
+
+- Will it can't be created since a Pod with the same name already exists.
+
+- Run the following to create another pod with the same container but using a different name:
+
+ kubectl run db2 --image mongo
+
+kubectl get pods -o wide
+
+NAME   READY   STATUS    RESTARTS   AGE   IP               NODE      NOMINATED NODE   READINESS GATES
+db     1/1     Running   0          13m   192.168.138.6    w-node3   <none>           <none>
+db2    1/1     Running   0          16s   192.168.144.67   w-node2   <none>           <none>
+
+- The above shows that the new pod was created on w-node2.
+- Run the following to red up the Cluster  (https://pittnews.com/article/4433/news/yinz-get-what-im-sayin/)
+
+kubectl delete pod db2
+kubectl delete pod db
+
+- Well, the second command is taking a long time... wonder if w-node3 needs to be restarted or 
+  if there is a force argument.  There is a force --force option, but I will restart w-node3
+  just to play it safe.
+
+
+kubectl get pods -o wide
+
+NAME   READY   STATUS        RESTARTS   AGE   IP       NODE      NOMINATED NODE   READINESS GATES
+db     0/1     Terminating   0          20m   <none>   w-node3   <none>           <none>
+
+After a moment, the Pod is deleted.
+
+--------------------------------------------------------------------------------------------
+
+- ReplicaSets is a type of Controller responsible for running a specific number of Pods and
+  tracking their execution to assure that the specified number always remain running.
+
+- ReplicationControllers are the predecessor to ReplicaSets and provide the same function but
+  ReplicaSets adds some additional options.
+
+- In the last section, it was found that when one of the worker nodes was stopped, the Pod
+  was not recreated on another node.  When ReplicaSets are used, they will monitor the total 
+  number of running pods and create or delete pods to match the number specified.
+
+- Below is an example ReplicaSet with comments adding:
+
+
+apiVersion:  apps/v1
+kind: ReplicaSet
+metadata:
+  name: go-demo-2
+spec:
+  replicas: 2                       # The number of Pods to run and monitor
+  selector:
+    matchLabels:                    # The number of running Pods are determined by identifying all
+      type: backend                 # Pods having these specified matching labels.
+      service: go-demo-2
+  template:                         # The template indicates how the Pod should be constructed and
+    metadata:                       # the labels to be added to the created pod.  These labels can
+      labels:                       # be a superset of the specified selector labels.
+        type: backend
+        service: go-demo-2
+        db: mongo
+        language: go
+    spec:                           # The spec specifies what contains run within the Pod.  Not that
+      containers:                   # for most cases a Pod will normally run only one container.
+      - name: db
+        image: mongo:3.3
+
+
+
+- The Pods and the ReplicaSet definition are independent.  In other words, if a node is created by
+  another method (including a ReplicaSet, Pod definition, or manually) and have the same labels, 
+  they are considered as part of the ReplicaSet and are included in the count of currently running
+  Pods.
+
+kubectl create -f test-rs.yml 
+
+kubectl get pods -o wide
+
+
+NAME              READY   STATUS    RESTARTS   AGE     IP           NODE      NOMINATED NODE   READINESS GATES
+go-demo-2-8c259   1/1     Running   0          3m15s   10.244.1.8   w-node1   <none>           <none>
+go-demo-2-jn9wc   1/1     Running   0          3m15s   10.244.2.6   w-node2   <none>           <none>
+
+
+- The above shows that two instances of the pod where created one worker node1 and node2.
+
+- The following command can be used to view the higher level information of the all ReplicaSets:
+kubectl get rs
+
+- However, if you just want to see the ReplicaSet defined by a specific file, the following can be used:
+
+kubectl get -f test-rs.yml
+
+- And to get additional details fo the pods running within a ReplicaSet:
+
+kubectl describe -f test-rs.yml 
+
+- Since the ReplicaSet determines the matching Pods using labels, it is useful to see the labels associated
+  with Pods:
+
+kubectl get pods --show-labels
+
+NAME              READY   STATUS    RESTARTS   AGE   LABELS
+go-demo-2-lhkgl   1/1     Running   0          6m    db=mongo,language=go,service=go-demo-2,type=backend
+go-demo-2-vbs6g   1/1     Running   0          6m    db=mongo,language=go,service=go-demo-2,type=backend
+
+
+- Next, run the following at the shell of w-node1:
+
+shutdown now
+
+- Since the Pods where defined by a ReplicaSet, Kubernetes will monitor the running Pods and assure
+  that 2 Pods with the selector specified by the ReplicaSet are always running.
+  
+- After the first worker node is stopped, the Pod will be recreated on another node.
+
+
+kubectl get pods -o wide
+
+NAME              READY   STATUS        RESTARTS   AGE     IP           NODE      NOMINATED NODE   READINESS GATES
+go-demo-2-2l4p2   1/1     Running       0          4m32s   10.244.3.2   w-node3   <none>           <none>
+go-demo-2-8c259   1/1     Running       1          26m     10.244.1.9   w-node1   <none>           <none>
+go-demo-2-jn9wc   1/1     Terminating   0          26m     10.244.2.6   w-node2   <none>           <none>
+
+
+- After sometime (took a bit longer than I would have thought ~5min, the Pod was recreated on w-node3.)
+
+- Next, start w-node1 again and list the pods again.
+
+
+NAME              READY   STATUS    RESTARTS   AGE     IP           NODE      NOMINATED NODE   READINESS GATES
+go-demo-2-2l4p2   1/1     Running   0          9m41s   10.244.3.2   w-node3   <none>           <none>
+go-demo-2-8c259   1/1     Running   1          31m     10.244.1.9   w-node1   <none>           <none>
+
+- The pod remains on w-node3 and is not recreated on w-node1.  All the Controller cares about is 2 Pods
+  are running and not on which Nodes (unless it detects that resources needed to be reallocated).
+
+- Lastly delete the ReplicaSet:
+
+kubectl delete -f test-rs.yml 
+
+- The above will delete all Pods matching the label selector specified within the ReplicaSet.  
+- It does not matter if the Pod was created by another means.  As long as it matches the selector
+  label, it will be delete.
+- But since ReplicaSet and nodes are independent, the following could have been used to delete
+  only the ReplicaSet and leaving the nodes:
+
+kubectl delete -f test-rs.yml --cascade=false
+
+** NOTE:  The difference between Create/Apply:  Create will create the resource.  In this case the
+ReplicaSet.  However, once it is created it can't be updated unless the --save-config argument is
+passed.   If the --save-config argument is specified, then the resource can be updated by issuing 
+an Apply with an updated resource definition.  Instead of having the specify the save argument,
+the first call to create the resource can be issued using the Apply command instead.
+
+- Run the following to create the ReplicaSet that can be later edited:
+
+kubectl apply -f test-rs.yml 
+
+- Since the apply was used, it can be updated by applying another file containing updates.
+  In this case the updated resource specifies that 3 Pods should be executed:
+
+kubectl apply -f test-rs2.yml
+
+Run the following to see if a 3rd pod was created:
+
+kubectl get pods -o wide
+
+NAME              READY   STATUS    RESTARTS   AGE     IP            NODE      NOMINATED NODE   READINESS GATES
+go-demo-2-hrbqn   1/1     Running   0          2m21s   10.244.1.12   w-node1   <none>           <none>
+go-demo-2-nprrx   1/1     Running   0          38s     10.244.2.9    w-node2   <none>           <none>
+go-demo-2-tzm57   1/1     Running   0          2m21s   10.244.3.4    w-node3   <none>           <none>
+
+- The above shows another Pod was created on w-node2.
+- The the prior file can be applied which will terminate a Pod since it specifies that only 2 are needed:
+
+kubectl apply -f test-rs.yml 
+
+kubectl get pods -o wide
+
+NAME              READY   STATUS    RESTARTS   AGE     IP            NODE      NOMINATED NODE   READINESS GATES
+go-demo-2-hrbqn   1/1     Running   0          5m27s   10.244.1.12   w-node1   <none>           <none>
+go-demo-2-tzm57   1/1     Running   0          5m27s   10.244.3.4    w-node3   <none>           <none>
+
+- Now only two Pods are runnings as shown above.
+- Next, one of the Pods will be deleted and Kubernetes Controller-Plane will detect this can call the
+  Scheduler with the Pod template to be created.
+
+kubectl delete pod go-demo-2-hrbqn
+kubectl get pods -o wide
+
+NAME              READY   STATUS    RESTARTS   AGE     IP            NODE      NOMINATED NODE   READINESS GATES
+go-demo-2-rmsk8   1/1     Running   0          17s     10.244.2.10   w-node2   <none>           <none>
+go-demo-2-tzm57   1/1     Running   0          9m55s   10.244.3.4    w-node3   <none>           <none>
+
+- The above output shoes that a new Pod was created and is now running on W-node2.
+
+* NOTE:  This detection was almost immediate whereas when the entire node was shutdown, it took a few minutes
+  to detect the change in state.
+
+- Since the Controller-Plane determines the number of nodes matching a ReplicaSet by use of labels, 
+  change one of the running Pods's labels to no longer match the selector, will result in another 
+  Pod being created.  
+
+- The following will display the current Pods's labels and update one of the running Pods's label so
+  it no longer matches the selector:
+
+kubectl get pods -o wide --show-labels
+
+NAME              READY   STATUS    RESTARTS   AGE     IP            NODE      NOMINATED NODE   READINESS GATES   LABELS
+go-demo-2-rmsk8   1/1     Running   0          8m45s   10.244.2.10   w-node2   <none>           <none>            db=mongo,language=go,service=go-demo-2,type=backend
+go-demo-2-tzm57   1/1     Running   0          18m     10.244.3.4    w-node3   <none>           <none>            db=mongo,language=go,service=go-demo-2,type=backend
+
+kubectl label pod go-demo-2-rmsk8 service-
+kubectl get pods -o wide --show-labels
+
+NAME              READY   STATUS    RESTARTS   AGE   IP            NODE      NOMINATED NODE   READINESS GATES   LABELS
+go-demo-2-qmkxh   1/1     Running   0          19s   10.244.1.13   w-node1   <none>           <none>            db=mongo,language=go,service=go-demo-2,type=backend
+go-demo-2-rmsk8   1/1     Running   0          13m   10.244.2.10   w-node2   <none>           <none>            db=mongo,language=go,type=backend
+go-demo-2-tzm57   1/1     Running   0          22m   10.244.3.4    w-node3   <none>           <none>            db=mongo,language=go,service=go-demo-2,type=backend
+
+- Now there are 3 running nodes.  Two that match the selector and one remaining that no longer matches.
+
+- Next, add the label back to the Pod from which it was removed.  Kubernetes will detect that there are now three nodes and not two
+  matching the selector and will terminate one of them:
+
+kubectl label pod go-demo-2-rmsk8 service=go-demo-2
+kubectl get pod --show-labels
+
+NAME              READY   STATUS        RESTARTS   AGE   LABELS
+go-demo-2-jw8rf   0/1     Terminating   0          31s   db=mongo,language=go,service=go-demo-2,type=backend
+go-demo-2-rmsk8   1/1     Running       0          28m   db=mongo,language=go,service=go-demo-2,type=backend
+go-demo-2-tzm57   1/1     Running       0          38m   db=mongo,language=go,service=go-demo-2,type=backend
+
+Since updating the Pod's label resulted in 3 Pods matching the ReplicaSet's selector, one of them was terminated.
+
+kubectl delete -f test-rs.yml 
+
+NOTES:  ReplicaSets are usually not used on their own.  Instead, Deployment resources are used instead.  
+A deployment describes one or more ReplicaSets comprising a deployment.  And the ReplicaSets within the
+deployment describe the number of Pods that should remain running and how it should be created.
+
+-------------------------------------------------------------------------------------------
+
