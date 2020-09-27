@@ -82,7 +82,7 @@ VM Setting:
 
 - After all the above VMs are created, configure each with the following settings:
   - 2048 RAM
-	- 3 CPUs  (System|Processor)
+	- 2 CPUs  (System|Processor)
 	- Add Adapter2 Host-only Adapter (Network|Adapter2)
 
 
@@ -112,10 +112,10 @@ VM Setting:
 - Start the VM.  When prompted, select 	the downloaded ISO.
 
 - Select the default settings until the Profile setup screen is shown.
-	- Your Name: 				Kubernetes
-	- Your server's name:		m-node1
-	- Pick a username:			m-node1
-	- Choose a password:		m-node1
+	- Your Name: 				      Kubernetes
+	- Your server's name:		  m-node1
+	- Pick a username:			  m-node1
+	- Choose a password:		  m-node1
 	- Confirm your password:	m-node1
 
 - On the SSH Setup step, select Install OpenSSH Server.
@@ -135,18 +135,18 @@ VM Setting:
 
 
 Node		IP Address
-m-node1		192.168.57.27
-w-node1		192.168.57.28
-w-node2		192.168.57.29
-w-node3		192.168.57.30
+m-node1		192.168.56.4
+w-node1		192.168.56.5
+w-node2		192.168.56.6
+w-node3		192.168.56.7
 
 Next, execute the following commands (from the Host's shell) to copy the public SSH key generated
 previously, to each of the servers.  When prompted with question about continuing, type "yes".
 
-$ ssh-copy-id m-node1@192.168.57.27
-$ ssh-copy-id w-node1@192.168.57.28
-$ ssh-copy-id w-node2@192.168.57.29
-$ ssh-copy-id w-node3@192.168.57.30
+$ ssh-copy-id m-node1@192.168.56.4
+$ ssh-copy-id w-node1@192.168.56.5
+$ ssh-copy-id w-node2@192.168.56.6
+$ ssh-copy-id w-node3@192.168.56.7
 
 
 =============================================================================
@@ -167,11 +167,13 @@ $ ssh-copy-id w-node3@192.168.57.30
 - The above steps can be executed by using SSH to log into each node from
   the host operating system:
 
-  $ ssh m-node1@192.168.57.27
-	$ ssh w-node1@192.168.57.28
-	$ ssh w-node2@192.168.57.29
-	$ ssh w-node3@192.168.57.30
+  $ ssh m-node1@192.168.56.4
+	$ ssh w-node1@192.168.56.5
+	$ ssh w-node2@192.168.56.6
+	$ ssh w-node3@192.168.56.7
 
+- Run as the root user:
+ sudo -i 
 
 -----------------------------------------------------------------------------
 -- Install Docker (All Nodes)
@@ -179,24 +181,42 @@ $ ssh-copy-id w-node3@192.168.57.30
 
 https://kubernetes.io/docs/setup/production-environment/container-runtimes/
 
-curl -fsSL https://get.docker.com -o get-docker.sh 
-sudo sh get-docker.sh 
-sudo usermod -aG docker $USER
 
-sudo touch /etc/docker/daemon.json 
+apt-get update && apt-get install -y \
+  apt-transport-https ca-certificates curl software-properties-common gnupg2
 
-sudo bash -c 'cat > /etc/docker/daemon.json <<EOF
+
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -
+
+add-apt-repository \
+  "deb [arch=amd64] https://download.docker.com/linux/ubuntu \
+  $(lsb_release -cs) \
+  stable"
+
+
+apt-get update && apt-get install -y \
+  containerd.io=1.2.13-2 \
+  docker-ce=5:19.03.11~3-0~ubuntu-$(lsb_release -cs) \
+  docker-ce-cli=5:19.03.11~3-0~ubuntu-$(lsb_release -cs)
+
+cat > /etc/docker/daemon.json <<EOF
 {
-"exec-opts": ["native.cgroupdriver=systemd"],
-"log-driver": "json-file",
-"log-opts": {
-	"max-size": "100m"
-},
-"storage-driver": "overlay2"
+  "exec-opts": ["native.cgroupdriver=systemd"],
+  "log-driver": "json-file",
+  "log-opts": {
+    "max-size": "100m"
+  },
+  "storage-driver": "overlay2"
 }
-EOF'
+EOF
 
-sudo mkdir -p /etc/systemd/system/docker.service.d
+mkdir -p /etc/systemd/system/docker.service.d
+
+systemctl daemon-reload
+systemctl restart docker
+
+sudo systemctl enable docker
+sudo usermod -aG docker $USER
 
 -----------------------------------------------------------------------------
 -- Removing Swap (All Nodes)
@@ -210,17 +230,15 @@ sudo nano /etc/fstab
 
 # Save Changes
 
-
-
 -----------------------------------------------------------------------------
 -- Install Kubernetes Components (All Nodes)
 -----------------------------------------------------------------------------
 
-curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo apt-key add -
+https://medium.com/@dcarrascal75/setting-a-kubernetes-cluster-on-ubuntu-virtualbox-the-lost-guide-73706e28bc5b
 
-cat <<EOF | sudo tee /etc/apt/sources.list.d/kubernetes.list
-deb https://apt.kubernetes.io/ kubernetes-xenial main
-EOF
+
+sudo sh -c "echo 'deb http://apt.kubernetes.io/ kubernetes-xenial main' >> /etc/apt/sources.list.d/kubernetes.list"
+sudo sh -c "curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add -"
 
 sudo apt-get update
 
@@ -234,11 +252,10 @@ sudo nano /etc/systemd/system/kubelet.service.d/10-kubeadm.conf
 
 https://medium.com/@kanrangsan/how-to-specify-internal-ip-for-kubernetes-worker-node-24790b2884fd
 
-Add  --node-ip=192.168.57.27 --cgroup-driver=systemd to KUBELET_KUBECONFIG_ARGS
-Add  --node-ip=192.168.57.28 --cgroup-driver=systemd to KUBELET_KUBECONFIG_ARGS
-Add  --node-ip=192.168.57.29 --cgroup-driver=systemd to KUBELET_KUBECONFIG_ARGS
-Add  --node-ip=192.168.57.30 --cgroup-driver=systemd to KUBELET_KUBECONFIG_ARGS
-
+Add  --node-ip=192.168.56.4 to KUBELET_KUBECONFIG_ARGS
+Add  --node-ip=192.168.56.5 to KUBELET_KUBECONFIG_ARGS
+Add  --node-ip=192.168.56.6 to KUBELET_KUBECONFIG_ARGS
+Add  --node-ip=192.168.56.7 to KUBELET_KUBECONFIG_ARGS
 
 # Save changes
 
@@ -269,7 +286,7 @@ $ sudo kubeadm init --apiserver-advertise-address=192.168.57.27 --pod-network-ci
 
 -------------------------------------------------------------------------------------------------------------
 
-our Kubernetes control-plane has initialized successfully!
+Your Kubernetes control-plane has initialized successfully!
 
 To start using your cluster, you need to run the following as a regular user:
 
@@ -283,8 +300,8 @@ Run "kubectl apply -f [podnetwork].yaml" with one of the options listed at:
 
 Then you can join any number of worker nodes by running the following on each as root:
 
-sudo kubeadm join 192.168.57.27:6443 --token q5cnrb.uxq4ddyv3htp7lg4 \
-    --discovery-token-ca-cert-hash sha256:640a6ad77cfcee7cdcadaab38d79914aff2b9ea2f560e2c87f8d01ba177f1125 
+sudo kubeadm join 192.168.56.4:6443 --token jm0qit.2912dzb1ld7f3zi9 \
+    --discovery-token-ca-cert-hash sha256:c9d543214c2b614a88a39754015437c6c5070562bb915e2ef69b15ac3479f54c 
 
 
 ------------------------------------------------------------------------------------------------------------
@@ -423,13 +440,14 @@ watch kubectl get nodes
   worker node once the watch command shows the node is joined and ready.
 
 
-$ ssh w-node1@192.168.57.21
-$ ssh w-node2@192.168.57.23
-$ ssh w-node3@192.168.57.22
+$ ssh w-node1@192.168.56.5
+$ ssh w-node2@192.168.56.6
+$ ssh w-node3@192.168.56.7
 
 
-sudo kubeadm join 192.168.57.20:6443 --token ticsxz.rz2dx9cj7o1l47ps \
-    --discovery-token-ca-cert-hash sha256:b31e7a5d3556dbcaf361be320fec485217b72bb7143f8cadcd2639b6891b91c6 
+sudo kubeadm join 192.168.56.4:6443 --token jm0qit.2912dzb1ld7f3zi9 \
+    --discovery-token-ca-cert-hash sha256:c9d543214c2b614a88a39754015437c6c5070562bb915e2ef69b15ac3479f54c 
+
 
 - Once the output of the get-nodes commands shows the following, the cluster has been 
   correctly initialized and configured:
@@ -437,10 +455,10 @@ sudo kubeadm join 192.168.57.20:6443 --token ticsxz.rz2dx9cj7o1l47ps \
 kubectl get nodes -o wide
 
 NAME      STATUS   ROLES    AGE     VERSION   INTERNAL-IP     EXTERNAL-IP   OS-IMAGE             KERNEL-VERSION     CONTAINER-RUNTIME
-m-node1   Ready    master   32m     v1.19.2   192.168.57.20   <none>        Ubuntu 20.04.1 LTS   5.4.0-48-generic   docker://19.3.13
-w-node1   Ready    <none>   20m     v1.19.2   192.168.57.21   <none>        Ubuntu 20.04.1 LTS   5.4.0-48-generic   docker://19.3.13
-w-node2   Ready    <none>   4m22s   v1.19.2   192.168.57.23   <none>        Ubuntu 20.04.1 LTS   5.4.0-48-generic   docker://19.3.13
-w-node3   Ready    <none>   2m43s   v1.19.2   192.168.57.22   <none>        Ubuntu 20.04.1 LTS   5.4.0-48-generic   docker://19.3.13
+m-node1   Ready    master   32m     v1.19.2   192.168.56.4   <none>        Ubuntu 20.04.1 LTS   5.4.0-48-generic   docker://19.3.13
+w-node1   Ready    <none>   20m     v1.19.2   192.168.56.5   <none>        Ubuntu 20.04.1 LTS   5.4.0-48-generic   docker://19.3.13
+w-node2   Ready    <none>   4m22s   v1.19.2   192.168.56.6   <none>        Ubuntu 20.04.1 LTS   5.4.0-48-generic   docker://19.3.13
+w-node3   Ready    <none>   2m43s   v1.19.2   192.168.56.7   <none>        Ubuntu 20.04.1 LTS   5.4.0-48-generic   docker://19.3.13
 
 =============================================================================
 == POINTING HOST TO CLUSTER
@@ -455,7 +473,7 @@ sudo chmod 777 admin.conf
 - Execute the following command on Host.  This will direct the kubectl so all commands are
   sent to the master node that was just configured and to a local instance or another cluster.
 
-scp m-node1@192.168.57.27:/home/m-node1/admin.conf ~/.kube/config
+scp m-node1@192.168.56.4:/home/m-node1/admin.conf ~/.kube/config
 export KUBECONFIG=~/.kube/config
 
 

@@ -1,32 +1,49 @@
 ######################################################################################
-### Installing minikube
+Cluster Implementations
 ######################################################################################
+
+--------------------------------------------------------------------------------------
+Installing minikube
+--------------------------------------------------------------------------------------
 
 https://phoenixnap.com/kb/install-minikube-on-ubuntu
 
-######################################################################################
-### Google Cloud Platform
-######################################################################################
+--------------------------------------------------------------------------------------
+Google Cloud Platform
+--------------------------------------------------------------------------------------
 
 Google Kubernetes Engine (GKE)
 
 
+--------------------------------------------------------------------------------------
+Multiple Node Cluster running on 4 ubuntu server VMs
+--------------------------------------------------------------------------------------
+
+Steps for creating:  creating-cluster.txt
+
+
+
 ######################################################################################
-### Basic Container Commands
+### Basic kubectl Commands
 ######################################################################################
 
 - To view information about the Kubernetes cluster:
 
 kubectl cluster-info   
 
+
+[minikube-specific]
+
 - If using Minikube, you can ssh into the node as follows:
     - minikube ssh
 
+[minikube-specific]
+
 
 - Each node in the cluster runs Docker, Kubelet, and the kube-proxy
-The kubeclt command line sends HTTP REST requests to the Kubernetes API server running on master node.
+- The kubectl command line sends HTTP REST requests to the Kubernetes API server running on master node.
 
-- If you ssh into the node you can see these running processes:
+- If you ssh into one of the nodes you can see these running processes:
 
     ps uax
 
@@ -37,21 +54,66 @@ The kubeclt command line sends HTTP REST requests to the Kubernetes API server r
 
 kubectl get nodes
 
+- For more details of each node, the following can be executed:
+
+kubectl get nodes -o wide
+
+
+[minikube-specific]
 
 - If using Minikube, there will be only one node.  This node acts as the Master and Worker node.
 - To view more details about a an object, in this case a node, kubectl describe can be used
 
 kubectl describe node minikube
 
+[minikube-specific]
+
+
+- The following can be used to view all pods running across all namespaces:
+
+kubectl get pods --all-namespaces
+
+- Just the pods for a specific namespace can be listed.
+- First find the available namespaces that are defined:
+
+ kubectl get namespaces
+
+ - Then filter on a namespace as follows:
+
+kubectl get pods -n calico-system
+
+- It is often useful to run commands within a Container running within a Pod.
+- If the Pod only has a single container (which is most often the case), the
+  command will be executed within that container.  If the Pod has more than 
+  one container, the -c switch must be specified to select the container by
+  name.
+
+- The following will run a Container within a Pod based on an ubuntu image
+  containing the ping and curl command line executables.
+
+kubectl run client --image blgreco72dev/ubuntu-tools
+
+- Then the following will start an interactive shell session within the 
+  client Pod's running Container:
+
+kubectl exec -it client -- sh
+
+- The above will be used to sent http requests to specific Pods running
+  within the cluster.
+
+
+
 ######################################################################################
-### Running Container in Kubernetes
+### Running Containers in Kubernetes
 ######################################################################################
 
 - It is a best practice to define an YAML or JSON file to describe the container to be executed.
 - However, it can also be done at the command line for testing.
 
-- The following will create a pod.  This is of very limited use since its execution is not belonging
-  managed by a ReplicaSet. 
+- The following will create a pod.  This is of very limited use since its execution is not being
+  managed by a ReplicaSet.  The following image contains an simple application that will returned
+  the host name in which it runs.
+
 
 kubectl run kubia --image=blgreco72dev/kubia --port=8080 
 
@@ -59,74 +121,210 @@ kubectl run kubia --image=blgreco72dev/kubia --port=8080
 - The above command will run the container within a Kubernetes pod.  A pod can contain multiple containers
   but most often only one container is contained within a pod.
 
-- Each pod has its own IP address, host name, processes.
+- Each Pod has its own IP address, host name, processes.
 - You cannot list containers but the current pods can be listed.
 
-kubectl get pods
+kubectl get pods -o wide
 
-The following command can be used to view details of a specific pod:
+NAME     READY   STATUS    RESTARTS   AGE    IP                NODE      NOMINATED NODE   READINESS GATES
+client   1/1     Running   1          17m    192.168.144.65    w-node2   <none>           <none>
+kubia    1/1     Running   0          100s   192.168.129.199   w-node1   <none>           <none>
+
+- The above results show the kubia running on worker node 1.  The IP of the created pod is 192.168.129.199.
+- This pod has been created on the Pod network and there fore cannot be accessed from the host operating system.
+- However, the Pod can be accessed from another Pod running within the same Pod notwork.  This can be shows by
+  running a shell within a Container of another running Pod and pinging the Pod's IP address:
+
+kubectl exec -it client -- sh
+
+# ping 192.168.129.199
+
+PING 192.168.129.199 (192.168.129.199) 56(84) bytes of data.
+64 bytes from 192.168.129.199: icmp_seq=1 ttl=62 time=0.782 ms
+64 bytes from 192.168.129.199: icmp_seq=2 ttl=62 time=0.560 ms
+64 bytes from 192.168.129.199: icmp_seq=3 ttl=62 time=0.589 ms
+64 bytes from 192.168.129.199: icmp_seq=4 ttl=62 time=0.618 ms
+64 bytes from 192.168.129.199: icmp_seq=5 ttl=62 time=0.677 ms
+
+Also, the host name of the Pod can be obtained by sending a HTTP request the the Pod on port 8080:
+
+# curl http://192.168.129.199:8080
+You've hit kubia
+
+
+- The following command can be used to view details of a specific pod:
 
 kubectl describe pod kubia
 
-- Next, ssh into the node and complete the following:
+- The details contain the following:
+    - The container running within the Pod and the image from which it was created.
+    - The port the container exposes (this is specified within the Docker file used to build the image.)
+    - volumes
+    - List of events recorded pertaining to the Pod.
+
+
+- Kubernetes is built on top of a container implementation.  The most common one being Docker.
+- When the minikube VM or any of the Ubuntu VMs created for the multi node cluster running in 
+  Virtual Box, Docker was one of the first installed packages.
+
+- The following will ssh into the VM running the kubia Pod to view the allocated Docker images and Containers:
+- There is only one node in minikube, but for the multi node cluster, execute the following to determine the
+  node on which the kubia Pod is running:
+
+NAME     READY   STATUS    RESTARTS   AGE   IP                NODE      NOMINATED NODE   READINESS GATES
+client   1/1     Running   2          34m   192.168.144.65    w-node2   <none>           <none>
+kubia    1/1     Running   0          18m   192.168.129.199   w-node1   <none>           <none>
+
+- In the above multi-node cluster, the kubia Pod is running on w-node1.
+- Next, run the following to determine the IP address of w-node1:
+
+kubectl get nodes -o wide
+
+NAME      STATUS   ROLES    AGE     VERSION   INTERNAL-IP    EXTERNAL-IP   OS-IMAGE             KERNEL-VERSION     CONTAINER-RUNTIME
+m-node1   Ready    master   5h7m    v1.19.2   192.168.56.4   <none>        Ubuntu 20.04.1 LTS   5.4.0-48-generic   docker://19.3.11
+w-node1   Ready    <none>   4h20m   v1.19.2   192.168.56.5   <none>        Ubuntu 20.04.1 LTS   5.4.0-48-generic   docker://19.3.11
+w-node2   Ready    <none>   74m     v1.19.2   192.168.56.6   <none>        Ubuntu 20.04.1 LTS   5.4.0-48-generic   docker://19.3.11
+w-node3   Ready    <none>   59m     v1.19.2   192.168.56.7   <none>        Ubuntu 20.04.1 LTS   5.4.0-48-generic   docker://19.3.11
+
+- If minikube is being used, run the following to ssh into the simple node:
 
 minikube ssh
 
-- List all the containers running on the node in Docker:
+- For the multi node cluster above, ssh into w-node1:
+
+ ssh w-node1@192.168.56.5
+
+- Once logged into the Node running the Pod containing the kubia container, complete the following to inspect the Docker objects:
+
+- List the images installed on the Node:
+
+docker images
+
+blgreco72dev/kube-service-1   latest              7ec71e420a81        10 hours ago        211MB
+blgreco72dev/ubuntu-tools     latest              fcd47ed02192        36 hours ago        114MB
+k8s.gcr.io/kube-proxy         v1.19.2             d373dd5a8593        10 days ago         118MB
+calico/node                   v3.16.1             0f351f210d5e        2 weeks ago         164MB
+calico/pod2daemon-flexvol     v3.16.1             4cbe1ed86c35        2 weeks ago         22.9MB
+calico/cni                    v3.16.1             4ab373b1fac4        2 weeks ago         133MB
+calico/typha                  v3.16.1             c5132b2bf06f        2 weeks ago         52.2MB
+            latest              1bbf21a8a605        3 weeks ago         660MB
+k8s.gcr.io/pause              3.2                 80d28bedfe5d        7 months ago        683kB
+
+- The above shows several of the Kubernetes component images used to create containers on the VM.
+- As expected, the blgreco72dev/kubia image exits.
+
+- List the running containers:
 
 docker container ls
 
-- The container for which the Pod was created will be listed.
-- Next, view the logs of the container that was created:
+CONTAINER ID        IMAGE                  COMMAND                  CREATED             STATUS              PORTS               NAMES
+680032fbc6e7        blgreco72dev/kubia     "node app.js"            25 minutes ago      Up 25 minutes                           k8s_kubia_kubia_default_44d29c7e-7e5c-46c2-a898-0009410d2220_0
+85e6b1da15d1        k8s.gcr.io/pause:3.2   "/pause"                 25 minutes ago      Up 25 minutes                           k8s_POD_kubia_default_44d29c7e-7e5c-46c2-a898-0009410d2220_0
+a0b9fcb4a530        c5132b2bf06f           "/sbin/tini -- calic…"   2 hours ago         Up 2 hours                              k8s_calico-typha_calico-typha-6794d46fcc-946qr_calico-system_777553aa-11cf-484c-a362-ea529bd8b0d7_7
+c287b032f875        0f351f210d5e           "start_runit"            2 hours ago         Up 2 hours                              k8s_calico-node_calico-node-rblrf_calico-system_b5a2b8a3-37be-4647-8259-e177f6d79f98_4
+66ed65dd2f0c        d373dd5a8593           "/usr/local/bin/kube…"   2 hours ago         Up 2 hours                              k8s_kube-proxy_kube-proxy-dgxd4_kube-system_430660f7-28fa-49c7-8de8-6c331490eddd_3
+6022da4c0363        k8s.gcr.io/pause:3.2   "/pause"                 2 hours ago         Up 2 hours                              k8s_POD_calico-node-rblrf_calico-system_b5a2b8a3-37be-4647-8259-e177f6d79f98_3
+4389e6844e0f        k8s.gcr.io/pause:3.2   "/pause"                 2 hours ago         Up 2 hours                              k8s_POD_kube-proxy-dgxd4_kube-system_430660f7-28fa-49c7-8de8-6c331490eddd_3
+498f6881bcf3        k8s.gcr.io/pause:3.2   "/pause"                 2 hours ago         Up 2 hours                              k8s_POD_calico-typha-6794d46fcc-946qr_calico-system_777553aa-11cf-484c-a362-ea529bd8b0d7_3
 
-docker container logs 16e1
+- The first listed container is the one running the image that was submitted to Kubernetes for execution.
+- Next, inspect the logs of some of the containers:
 
-- Next, view the images that are downloaded to the node:
+docker logs a0b9fcb4a530
+docker logs 680032fbc6e7
 
-docker image ls
 
-- The image from which the container running in the pod will be listed.
+- When a Pod is created by submitting a command to the Kubernetes REST API, the service takes multiple Steps
+  to run a Pod for the specified Docker image.  At a high level, the Scheduler is called with the Pod specification.
+  The scheduler determines the Node on which the Pod could be created.  The Kubelet process running on the node 
+  receives the request to create the Pod.  The Kubelet process downloads the Docker image and creates the corresponding
+  container.  
 
-- Next, attempt to stop the running container to see if we can break $hit.
+- As shown below, the Kubelet process is also responsible for monitoring the running containers and assures they 
+  remain running at all times.
 
-docker container stop 16e1
 
-- After a few moments, the container will have been recreated (not just restarted) by Kubernetes.
-- Usually this monitoring is completed by a ReplicationController.  However, in the Web Client, there is no ReplicationController
-  listed as being created.  This is how it worked in older versions of docker.
+- While still logged into the VM running the kubia example container, attempt to stop the running container to see 
+ if it is recreated.  Note the ID of the current running container. 
 
-- Next, attempt to kill that bad boy by removing the container:
+docker container stop 680032fbc6e7
 
-docker container rm -f f5
+- Then list the containers again:
 
-- Listing the containers shows that the container was created.
+docker container ls
 
-- Let really be jerks and remove the image and then remove the container.
+
+CONTAINER ID        IMAGE                  COMMAND                  CREATED             STATUS              PORTS               NAMES
+5662829e4ec4        blgreco72dev/kubia     "node app.js"            39 seconds ago      Up 39 seconds                           k8s_kubia_kubia_default_44d29c7e-7e5c-46c2-a898-0009410d2220_1
+85e6b1da15d1        k8s.gcr.io/pause:3.2   "/pause"                 40 minutes ago      Up 40 minutes                           k8s_POD_kubia_default_44d29c7e-7e5c-46c2-a898-0009410d2220_0
+a0b9fcb4a530        c5132b2bf06f           "/sbin/tini -- calic…"   2 hours ago         Up 2 hours                              k8s_calico-typha_calico-typha-6794d46fcc-946qr_calico-system_777553aa-11cf-484c-a362-ea529bd8b0d7_7
+c287b032f875        0f351f210d5e           "start_runit"            2 hours ago         Up 2 hours                              k8s_calico-node_calico-node-rblrf_calico-system_b5a2b8a3-37be-4647-8259-e177f6d79f98_4
+66ed65dd2f0c        d373dd5a8593           "/usr/local/bin/kube…"   2 hours ago         Up 2 hours                              k8s_kube-proxy_kube-proxy-dgxd4_kube-system_430660f7-28fa-49c7-8de8-6c331490eddd_3
+6022da4c0363        k8s.gcr.io/pause:3.2   "/pause"                 2 hours ago         Up 2 hours                              k8s_POD_calico-node-rblrf_calico-system_b5a2b8a3-37be-4647-8259-e177f6d79f98_3
+4389e6844e0f        k8s.gcr.io/pause:3.2   "/pause"                 2 hours ago         Up 2 hours                              k8s_POD_kube-proxy-dgxd4_kube-system_430660f7-28fa-49c7-8de8-6c331490eddd_3
+498f6881bcf3        k8s.gcr.io/pause:3.2   "/pause"                 2 hours ago         Up 2 hours                              k8s_POD_calico-typha-6794d46fcc-946qr_calico-system_777553aa-11cf-484c-a362-ea529bd8b0d7_3
+
+- Note that the stopped container was not just restarted by kubia but a new container created with a new container ID.
+- If the new container is not listed, run the command to list the containers several times as it can take a moment for
+  it to be recreated.
+
+
+- Next, attempt to remove the running container to determine if it is recreated:
+
+docker container rm -f 5662829e4ec4
+
+Listing the containers again, shows that it was almost instantly recreated:
+
+CONTAINER ID        IMAGE                  COMMAND                  CREATED              STATUS              PORTS               NAMES
+e1146150d0f7        blgreco72dev/kubia     "node app.js"            About a minute ago   Up About a minute                       k8s_kubia_kubia_default_44d29c7e-7e5c-46c2-a898-0009410d2220_1
+85e6b1da15d1        k8s.gcr.io/pause:3.2   "/pause"                 46 minutes ago       Up 46 minutes                           k8s_POD_kubia_default_44d29c7e-7e5c-46c2-a898-0009410d2220_0
+
+- As a last attempt, the image will be deleted and then the container removed.
 
 docker image rm blgreco72dev/kubia -f
-docker container rm 892 -f 
+docker container rm e1146150d0f7 -f 
 
 - If you list the images and containers, the image will have been re-pulled down and
   a new container will have been created.
-
-- NOTE:  The Kubelet running on the node is responsible for making sure the container remains running in the pod.
 
 - Exit the node's shell:
 
 $ exit
 
-- Running the following command will show that the pod was restarted twice.  So, when the container will stopped
-  and removed above, Kubernetes recreates a new pod (not just the container).
+- The following can be executed to view the events that took place for the pod:
 
 $ kubectl get pods
 $ kubectl describe pod kubia
 
-In the events section, it shows the pod was created due to restarting a failed container.
-
+- In the events section, it shows the pod was created due to restarting a failed container.
 
 - The following command will delete the pod.  Not that this will take a few seconds to complete:
 
 kubectl delete pod kubia
+
+- The following command is helpful to see the pods running across all nodes and namespaces:
+
+kubectl get pods -o wide --all-namespaces
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 ######################################################################################
 ### Access Api from outside of the cluster
