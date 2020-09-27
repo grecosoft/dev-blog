@@ -1088,7 +1088,7 @@ $ kubectl delete rs kubia-set
 ### Services
 ######################################################################################
 
-- Services device how one service can discover other services for which it needs to
+- Service Resources define how one service can discover other services for which it needs to
   communicate with as part of a software solution running in a Kubernetes cluster.
 
 - These communications may be between Pods with in the cluster and also from clients
@@ -1099,8 +1099,8 @@ $ kubectl delete rs kubia-set
       service.  The set of Pods are normally created by a ReplicaSet.
     - When a Service resource is created, it is given a static IP address and port.
       This static address will remain as long as the Service is not deleted.
-    - The service knows the IP addresses of all the Pods running the component-service API
-      within the cluster.
+    - The Service Resource knows the IP addresses of all the Pods running a specific service
+      component within the cluster.
     - When the Service receives a request, it routes to one of the Pods.
     - A service can also be configured with an external IP address that can be accessed by
       client outside of the cluster.  Services are also created internal to the cluster so
@@ -1113,23 +1113,267 @@ $ kubectl delete rs kubia-set
 
     - A service also load balances across the Pods running the service-api.
 
-Creating a Service
--------------------------------
+-----------------------------------------------------------------------------------------------------
+Creating a Service (NodePort)
+-----------------------------------------------------------------------------------------------------
 
-- Run the following to create a replica set consisting of three service instances that will
-  then have services created:
+*** NOTE:  The following shows the use of a LoadBalancer based service.  It was found that this
+*** type of service will only work within a Cluster implementation providing a LoadBalancer.  
+*** This is not the case for Custer, Node, and Ingress based services.  The LoadBalancer examples
+*** will work using minikube or a Cloud provider such as AWS, Google Cloud Services, or Azure.
 
-$ kubectl create -f replica-set.yaml
+https://stackoverflow.com/questions/44110876/kubernetes-service-external-ip-pending
 
-- The following command list list any defined services with the default namespace:
-- A service can be created using kubectl at the command line or defining an YAML definition file.
 
-$ kubectl get services
+*** Given this, the LoadBalancer example will be contained within a separate section.
+
+- Currently, the only way to communicate with a service-api running within a Pod's container
+  is to directly use the IP address of the Pod and the port the service is running on.  While
+  Port Forwarding can be used, this is really only an option that should be used when developing.
+
+- Like other higher-level resources, the Pods to which a service relates is defined by 
+  labels matching the selector defined by Service.
+
+- First start by running the following so there are multiple Pods running the same service:
+
+$ kubectl create -f lessons/replica-set-definition.yaml 
+
+- The created Pods will then have different types of related Services created.
+
+$ kubectl get pods -o wide
+
+NAME              READY   STATUS    RESTARTS   AGE     IP                NODE      NOMINATED NODE   READINESS GATES
+client            1/1     Running   8          3h29m   192.168.129.208   w-node1   <none>           <none>
+kubia-set-dvl6q   1/1     Running   0          79s     192.168.129.209   w-node1   <none>           <none>
+kubia-set-s6528   1/1     Running   0          79s     192.168.138.10    w-node3   <none>           <none>
+kubia-set-sswfj   1/1     Running   0          79s     192.168.144.75    w-node2   <none>           <none>
+
+- The following can be used to list all defined services:
+
+kubectl get services -o wide
+
+NAME         TYPE        CLUSTER-IP   EXTERNAL-IP   PORT(S)   AGE   SELECTOR
+kubernetes   ClusterIP   10.96.0.1    <none>        443/TCP   25h   <none>
+
 
 - The only service should be the one for the REST API interface used by kubectl.
 
-NAME         TYPE           CLUSTER-IP      EXTERNAL-IP     PORT(S)          AGE
-kubernetes   ClusterIP      10.96.0.1       <none>          443/TCP          2d8h
+- Run the following command to create a NodePort service:
+
+$ kubectl expose replicaset kubia-set --type=NodePort --port=8080
+
+- This command will define a new Service of type NodePort based on the selector
+  defined within by the kubia-set ReplicaSet.  After running the command, list
+  the current services:
+
+kubectl get services -o wide
+
+
+NAME         TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)          AGE    SELECTOR
+kubernetes   ClusterIP   10.96.0.1        <none>        443/TCP          25h    <none>
+kubia-set    NodePort    10.107.150.101   <none>        8080:32299/TCP   8m2s   app=kubia
+
+- The above shows they newly created server matching the name of the ReplicaSet that was
+used to determine which Pods it should be defined for.
+
+- Before running the above command, the only way to access a service-api running within
+  a Container of a Pod was to use the IP address of the Pod.  Since Pods are not static
+  and can be recreated for several scenarios, the IP address of a Pod should never be 
+  used.
+
+- Also, the only way to access a service-api externally to the Cluster was to use Port
+  Forwarding which is only an option when developing.
+
+- Defining the above NodePort Service has added the following to the Cluster:
+
+    - The services running within Pods, matching the ReplicaSet on which the
+      NodePort Service Resource was created, can now be access from outside 
+      the cluster.
+      ------------------------------------------------------------------------------------------------
+
+      kubectl get services -o wide
+
+      NAME         TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)          AGE   SELECTOR
+      kubernetes   ClusterIP   10.96.0.1        <none>        443/TCP          25h   <none>
+      kubia-set    NodePort    10.107.150.101   <none>        8080:32299/TCP   18m   app=kubia
+
+
+      kubectl get pods -o wide
+
+      NAME              READY   STATUS    RESTARTS   AGE     IP                NODE      NOMINATED NODE   READINESS GATES
+      client            1/1     Running   9          3h48m   192.168.129.208   w-node1   <none>           <none>
+      kubia-set-dvl6q   1/1     Running   0          20m     192.168.129.209   w-node1   <none>           <none>
+      kubia-set-s6528   1/1     Running   0          20m     192.168.138.10    w-node3   <none>           <none>
+      kubia-set-sswfj   1/1     Running   0          20m     192.168.144.75    w-node2   <none>           <none>
+
+      kubectl get nodes -o wide
+
+      NAME      STATUS   ROLES    AGE   VERSION   INTERNAL-IP    EXTERNAL-IP   OS-IMAGE             KERNEL-VERSION     CONTAINER-RUNTIME
+      m-node1   Ready    master   25h   v1.19.2   192.168.56.4   <none>        Ubuntu 20.04.1 LTS   5.4.0-48-generic   docker://19.3.11
+      w-node1   Ready    <none>   24h   v1.19.2   192.168.56.5   <none>        Ubuntu 20.04.1 LTS   5.4.0-48-generic   docker://19.3.11
+      w-node2   Ready    <none>   21h   v1.19.2   192.168.56.6   <none>        Ubuntu 20.04.1 LTS   5.4.0-48-generic   docker://19.3.11
+      w-node3   Ready    <none>   21h   v1.19.2   192.168.56.7   <none>        Ubuntu 20.04.1 LTS   5.4.0-48-generic   docker://19.3.11
+
+      - The above listings shows the created service, running Pods, and also the IP addresses of the Nodes within the Cluster.  
+
+      - The following show calling the service-api running within a Container of a Pod by now using the IP address of the Node
+        and no longer the Pod:
+
+      curl http://192.168.56.6:32299
+      curl http://192.168.56.7:32299
+
+      Note:  The Port specified on the above Web Api calls is not 8080 which was used when calling the service-api 
+             directly on a Pod when using the Pod's IP address.  Above in the service listing, the Ports column
+             for the kubia-set service is:  8080:32299/TCP 
+
+      - Also, run one of the above Curl commands multiple times it does not always go to the Pod running on that
+        specific Node.  For example, the following is using the IP address of w-node2 which contains the Pod named
+        kubia-set-sswfj.  
+             
+      curl http://192.168.56.6:32299
+
+      - After running the above command using the IP address of w-node2, the called service-api can be handled by 
+        any Pod matching the selector of the defined Service (which was based on the selector of a ReplicaSet).
+
+      - Also, note even an IP address of a Node within the Cluster not hosting the Pod (running the service-api) 
+        can even be used.  This even applies to Master nodes.  Since the service-api is running on all the Worker
+        nodes, execute the following curl command against the Master node:
+
+      curl http://192.168.56.4:32299
+
+
+      - Run the following command to show more details of the created service:
+
+       kubectl describe service kubia-set
+
+        Name:                     kubia-set
+        Namespace:                default
+        Labels:                   <none>
+        Annotations:              <none>
+        Selector:                 app=kubia
+        Type:                     NodePort
+        IP:                       10.107.150.101
+        Port:                     <unset>  8080/TCP
+        TargetPort:               8080/TCP
+        NodePort:                 <unset>  32299/TCP
+        Endpoints:                192.168.129.209:8080,192.168.138.10:8080,192.168.144.75:8080
+        Session Affinity:         None
+        External Traffic Policy:  Cluster
+        Events:                   <none>
+
+
+        - The above shows the IP addresses for all the Nodes running the service-api matching the 
+          definition of the service.
+
+
+  - While the NodePort allows an api-service to accessed externally from the Cluster and is a step in the right
+    direction, it has the following short comings:
+
+        - If the caller is using an IP address of a specific Node, the caller will no longer be able to 
+          call the service-api if that node is taken offline.
+
+        - The caller would have to maintain a list of all the IP address for the Nodes running within the cluster.
+          However, additional nodes can be added in the future or existing ones decommissioned and the clients 
+          would need to be updated.  
+
+        - There is not a Single IP address that can be used to access the service.  NOTE:  When using the
+          LoadBalancer service type, EXTERNAL-IP will be set to a static IP for the life of the service to
+          which clients can send requests.  The LoadBalancer then forwards the request to one of the Pods
+          IPs listed within the Service Description above.  Then the service is again forwarded to one of the 
+          Pods as we already seen.  However, the LoadBalancer Service type is not supported by all clusters.
+
+        - For each service-api, a Service must be created.
+
+  - A following section will show how the above are really not short comings are the the initial
+   steps to defining an Ingress based Service.
+
+-----------------------------------------------------------------------------------------------------
+Additional NodePort Notes:
+-----------------------------------------------------------------------------------------------------
+
+  - When the NodePort Service Resource was created, note that the IP 10.107.150.101 was assigned to the
+    CLUSTER-IP.  When a NodePort is created, a ClusterIP service is also defined.
+
+  - The ClusterID can only be accessed from which Cluster.  This IP address can be used within any 
+    service-api running within a Pod's Container.  The ClusterIP provides a single static IP address 
+    that service-apis within the cluster can used to communicate with one another.  This IP address
+    can also be accessed by any Node that is a member of the cluster:
+
+  - To test this, first log into a Container running within a Pod:
+
+     $ kubectl exec -it client -- sh
+
+       - Then type the following curl command:
+       
+       # curl http://10.107.150.101:8080
+
+       - You will get a response from one of the Pod's container running the service-api
+
+       # exit
+
+  - Next ssh into one of the Nodes that is a member of a cluster:
+
+    $ ssh w-node1@192.168.56.5
+
+    - You will get a response from one of the service-apis running within a Pod container. 
+
+  - As before, a service-api running within a Pod associated with the service will be 
+    randomly selected to handle the request.
+
+
+-----------------------------------------------------------------------------------------------------
+ClusterIP Service Type:
+-----------------------------------------------------------------------------------------------------
+
+https://medium.com/google-cloud/kubernetes-nodeport-vs-loadbalancer-vs-ingress-when-should-i-use-what-922f010849e0
+
+- Above showed that when a NodePort service was created, a ClusterIP service type was also created
+  as seen by the Cluster-IP column having a value.
+
+- While a NodePort exposes the service externally on any node contained within the Custer at a specific 
+  externally defined Port, not all services within a Microservice architecture need be accessed by external
+  clients.
+
+- Only the services that must be called by external client should be exposed.
+- We are kind of working backwards since a ClusterIP is more limiting than the NodePort service type.
+
+- This section will show how to create ClusterIp service type and how it can only be accessed within
+  the cluster.
+
+- When defining a Microservice based solution, all services should be considered to determine which
+  ones should be make external and which ones should remain internal.  An example of Microservices 
+  that should remain internal are services providing confidential information, services that process
+  messages received on a message bus, or Microservices providing common functionality internally to 
+  all other Microservices running with the cluster.
+
+
+- Before continuing, the NodePort service type needs to be deleted:
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 - Next, a service will be created to expose the service-api running within pods associated
   with the kubia-set.
