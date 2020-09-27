@@ -296,8 +296,6 @@ $ exit
 $ kubectl get pods
 $ kubectl describe pod kubia
 
-- In the events section, it shows the pod was created due to restarting a failed container.
-
 - The following command will delete the pod.  Not that this will take a few seconds to complete:
 
 kubectl delete pod kubia
@@ -307,247 +305,86 @@ kubectl delete pod kubia
 kubectl get pods -o wide --all-namespaces
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 ######################################################################################
-### Access Api from outside of the cluster
+### Creating Resources using YAML
 ######################################################################################
 
-https://minikube.sigs.k8s.io/docs/handbook/accessing/#using-minikube-tunnel
+- A Pod was created at the command line above as follows:
 
-- The following will create a deployment and expose the service running within
-the container of the Kubernetes pod so it can be accessed from outside the 
-cluster.
+  kubectl run kubia --image=blgreco72dev/kubia --port=8080 
 
-- Run in command console:
------------------------------------
-$ minikube start
-$ minikube dashboard
+- This approach should not be used within production since the configuration 
+  is not documented. Instead resources can be defined in YAML.
 
-- Run the following in another command console:
------------------------------------
-$ minikube tunnel
+- If an existing resource exists within Kubernetes that was created at the
+  command line, the YAML can be generated.  This is also useful for viewing
+  a resources current configuration on the server.
 
-- Run the following in another command console:
-$ kubectl create deployment kubia-deploy --image blgreco72dev/kubia
+- The following command can be used to obtain an YAML definition for any type of resource.
+  Below shows requesting YAML for the created Pod created above.  The YAML can be very verbose 
+  and contains properties with default values that would not typically be set.
 
-- Run the following to view details about the deployment and created resources:
------------------------------------
-$ kubectl get deployments
-$ kubectl describe deployments kubia-deploy
-$ kubectl get pods
-$ kubectl describe pods kubia
+$ kubectl get pod
 
-- Run the following to expose the pod created for the container within the deployment:
------------------------------------
-$ kubectl expose deployment kubia-deploy --type=LoadBalancer --port=8080
+NAME     READY   STATUS    RESTARTS   AGE
+client   1/1     Running   6          15h
+kubia    1/1     Running   0          2m9s
 
-- The above is telling Kubernetes to expose all pods created from the named deployment.
-
-$ kubectl get service
+$ kubectl get pod kubia -o yaml
 
 
-NAME           TYPE           CLUSTER-IP     EXTERNAL-IP    PORT(S)          AGE
-kubernetes     ClusterIP      10.96.0.1      <none>         443/TCP          13m
-kubia-deploy   LoadBalancer   10.98.69.127   10.98.69.127   8080:32214/TCP   12m
+- The YAML file consists of the following sections:
+    - Metadata
+    - Specification
+    - Status
 
-- Note the IP that has been assigned to External-IP for the service.
+- The following will delete the above created Pod and it will be 
+  recreated by defining an YAML file instead.
 
-$ curl 10.98.69.127:8080
+kubectl delete pod kubia
 
+- When defining a YAML file for a Pod, the Ports on which the container listens
+  can be specified.  This is just for documentation and has no bearing on how
+  the container or pod is created.
 
-######################################################################################
-### Expecting the Node
-######################################################################################
+Creating the Pod using YAML
+----------------------------------
 
-- The minikube node has an ip address of:  172.17.0.3 as can be found
-  by running kubectl describe node minikube.  This is the IP address of
-  VM created running the single Kubernetes node.
+cat lessons/pod-definition.yaml 
 
-- The following will shh into the node and expect its state:
-
-$ minikube ssh
-
-- Once in the node, run the following to install curl command line:
-sudo apt-get update
-sudo apt-get install curl
-
-- Run the following to see the IP address of the VM:
-$ ip addr show
-
-eth0@if55: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue state UP group default 
-    link/ether 02:42:ac:11:00:03 brd ff:ff:ff:ff:ff:ff link-netnsid 0
-    inet 172.17.0.3/16 brd 172.17.255.255 scope global eth0
-
-- The IP address will match what was reported by kubectl describe minikube
-
-- Exit the ssh session.
-$ exit
-
-- Next, run the following to get the details of the pod running within the cluster:
-
-$ kubectl describe pod kubia
-
-Namespace:    default
-Priority:     0
-Node:         minikube/172.17.0.3
-Start Time:   Wed, 02 Sep 2020 11:57:59 -0400
-Labels:       app=kubia-deploy
-              pod-template-hash=5d9f894958
-Annotations:  <none>
-Status:       Running
-IP:           172.18.0.3
-
-The IP address of the pod is 172.18.0.3
-
-- ssh into the node again:
-$ minikube ssh 
-
-- Next, execute the following command to against the IP address of
-  the pod to call the service (api) running within the pod from a 
-  bash session within the node containing the pod:
-
-curl 172.18.0.3:8080
-
-- So the above is accessing the Pod from the bash command line on the node
-  that was ssh into.  The above IP address 172.18.0.3 is specific to the node
-  and can only be accessed from the node that was just ssh into.
-
-- The following are the details for the service created to expose the container
-  running from within the Pod:
-
-NAME           TYPE           CLUSTER-IP     EXTERNAL-IP    PORT(S)          AGE
-kubia-deploy   LoadBalancer   10.98.69.127   10.98.69.127   8080:32214/TCP   12m
+apiVersion: v1
+kind: Pod
+metadata:
+  name: kubia-pod
+spec:
+  containers:
+  - image: blgreco72dev/kubia
+    name: kubia
+    ports:
+    - containerPort: 8080
+      protocol: TCP
 
 
-- The Cluster-IP can be used to access the Pod from another node within the cluster.
-- Minikube is only a one node cluster, but still logged into the node, this IP address
-  can also be used to call the service running within the Pods container:
+- The following will submit the YAML to the Kubernetes REST API:
 
-curl 10.98.69.127:8080
-  
-- So a microservice based solution should be designed to carefully to only expose
-  the services that should be allowed to be invoked from outside the cluster while
-  other more internal services should only communicate on the internal custer-ip.
+$ kubectl create -f lessons/pod-definition.yaml  
+$ kubectl get pods -o wide
 
-** Later a multi node cluster will be created using Google Cloud Services and more
-   details will be provided.
+NAME        READY   STATUS    RESTARTS   AGE   IP                NODE      NOMINATED NODE   READINESS GATES
+client      1/1     Running   7          15h   192.168.144.66    w-node2   <none>           <none>
+kubia-pod   1/1     Running   0          26s   192.168.129.201   w-node1   <none>           <none>
 
+- Applications running within containers typically write log files to standard
+out and standard error streams.
 
-minikube service kubia-deploy
+- The logs for a givin pod can be see by issuing the following command:
+$ kubectl logs kubia-pod
 
-|-----------|--------------|-------------|-------------------------|
-| NAMESPACE |     NAME     | TARGET PORT |           URL           |
-|-----------|--------------|-------------|-------------------------|
-| default   | kubia-deploy |        8080 | http://172.17.0.3:32214 |
-|-----------|--------------|-------------|-------------------------|
+- If the Pod contains multiple containers, you must specify the container's name
+using the -c parameter.
 
-- 10.98.69.127:8080 (LoadBalancer)  -->   http://172.17.0.3:32214 (node) -->  172.18.0.3:8080(pod)
-
--  This is the ip and port exposed        - This is the ip and port exposed     - This is the ip and port
-   by the load balancer.                    to allows the container service       of the internal pod.
-                                            for access outside of the cluster
-
-- These layers of indirection are needed since after exposing the pod to be called from outside the
-  node, the pod can be moved around or replicated to several different nodes.  So clients should 
-  never point to a service on a given node since it might be moved and therefore the ip and port
-  would change.  The ip and port of the LoadBalancer is static and load balances requests across
-  the nodes running the pod.
-
-$ minikube stop                             
-$ minikube delete
-
-- The following outlines what is happening when the above deployment was created 
-  using kubeclt from the command line:
-
-1.  The kubectl commands sends request to the Kubernetes HTTP REST Api.
-2.  A new Deployment is created within the cluster.
-3.  The Deployment creates a Replica Set identifying how the pods should be created to satisfy deployment.
-4.  The Replica Set coordinates the creation of a new Pod to run container by sending request to the Scheduler.
-5.  The Scheduler determines the node on which the container should be created and sends request to the Kubelet 
-    running on the node.
-6.  The Worker node uses Docker to pull the image from a repository and creates a Docker Container.
-7.  The Docker Container is associated with the Pod in which is executed.
-8.  Next, a service is created to expose the api running within the pod's docker container.  
-
-
-- However, this IP address is internal to the cluster can cannot be accessed from outside.
-- To expose the service running within a pod's container, a service must be created.
-- There are different types of services:  LoadBalancer and ClusterIP.  A ClusterIP exposes
-  the pod's container service(api) within the custer and a LoadBalancer will expose the
-  pod's container service(api) to outside the cluster.
-- LoadBalancer services creates an external load balancer with an exposed IP address to 
-  which external clients use to call a pod's container service(api).
-
-######################################################################################
-### Additional Kubernetes Cluster/Controllers/Services/Pods Notes
-######################################################################################
-
-- The role of the ReplicationController is to replicate pods and to make sure they
-  remain running.  ReplicationController resource are not created very often are 
-  a ReplicaSet (a type of ReplicationController) is commonly used.  When the deployment
-  above was created, it created an associated ReplicaSet.
-
-- If a pod crashes or the node is stopped, this is detected by the ReplicaSet which
-  schedules another pod with the Scheduler to be created.  The Schedule determines 
-  the best worker node for the pod.  The Kubelet process running on the node is called
-  by the scheduler.  The Kubelet process then pulls the image and then creates the container
-  and associated pod. 
-
-- When the prod is relocated to a new node, the newly created pod will have a new IP address.
-- The IP address of the LoadBalancer Service is static (for the life of the service).  The 
-LoadBalancer Service keeps track of the nodes the exposed pods are running and forwards any
-requests to one of the nodes where the pod is running.
-
-** Services represent a static location for a group of one or more pods that all provide the same service.
-
-- The following will show the created ReplicaSet resources:
-$ kubectl get replicasets
-
-NAME                      DESIRED   CURRENT   READY   AGE
-kubia-deploy-5d9f894958   1         1         1       4h11m
-
-- Next, the ReplicaSet will be sent a request to have the number of running pods
-  scaled-up from one to 3.  Since these examples thus far are using minikube, there
-  is only one node so the following command can be executed:
-  
-$ kubectl scale --replicas=3 rs/kubia-deploy-5d9f894958 
-  
-  In the dashboard, you will see the number of pending nodes increase and two additions 
-  pods listed, but since this is a single node cluster, the pods will not be replicated.  
-  This is just a limitation of using minikube.  This will be revisited after setting up 
-  Kubernetes as a cloud service.
-
-
-- The following will list all the pods and the nodes to which the are running.  Knowing
-  which node a pod is running on is usually no of interest.
-
- $ kubectl get pods -o wide
-
-NAME                            READY   STATUS    RESTARTS   AGE     IP           NODE       NOMINATED NODE   READINESS GATES
-kubia-deploy-5d9f894958-5hhrn   1/1     Running   0          4h29m   172.18.0.3   minikube   <none>           <none>
-
-
-And the following can be used to get details for a specific Pod:
-
-$ kubectl describe pod kubia-deploy-5d9f894958-5hhrn
+- A Pod's logs are deleted when the Pod no longer exists.  If logs need to be
+  persisted, they need to be written to a central error log store.
 
 
 ######################################################################################
@@ -562,6 +399,7 @@ $ kubectl describe pod kubia-deploy-5d9f894958-5hhrn
   the containers need to access a shared file.
 
 - Pods allows containers to be bound together and manage then as a single unit.
+
 - The containers within the pod can share certain resources and are not fully 
   isolated as when running within Docker.  Kubernetes does this by sharing the
   same set of Linux namespace between the two containers.  In Docker, each 
@@ -579,122 +417,102 @@ $ kubectl describe pod kubia-deploy-5d9f894958-5hhrn
 - All Pods within a cluster are connected to the same software network and the
   containers can call one another by using each others IP address.  However, 
   this is not a good idea since Pods and be stopped, deleted, or moved and
-  will be assigned a new IP Address.  
+  will be assigned a new IP Address.  The following shows this:
+
+
+- List the details of all the pods to determine the node on which they are running:
+
+  kubectl get pods -o wide
+
+  NAME        READY   STATUS    RESTARTS   AGE     IP                NODE      NOMINATED NODE   READINESS GATES
+  client      1/1     Running   7          15h     192.168.144.66    w-node2   <none>           <none>
+  kubia-pod   1/1     Running   0          8m29s   192.168.129.201   w-node1   <none>           <none>
+
+- The kubia-pod is running on w-node1 and the client Pod is running on w-node2.
+
+- The following will determine if a Pod can be accessed from the VM Host on which it is running:
+- ssh into w-node1 and run the following to determine if the IP address of the pod(192.168.129.210) can be accessed:
+
+ssh w-node1@192.168.56.5
+  ping 192.168.129.201
+  curl http://192.168.129.201:8080
+
+At the above commands shows, the IP assigned to the Pod can be accessed form Node VM on which it runs.
+
+- Next, determine if the same pod can be access from another Node VM that is part of the cluster.
+- The following will SSH into w-node2 to determine if the IP address assigned to the Pod running 
+  on w-node1 can be called:
+
+ssh w-node2@192.168.56.6
+  ping 192.168.129.201
+  curl http://192.168.129.201:8080
+
+- Again, the Pod can be accessed.
+
+- Lastly, determine if the service-api running within a Pod on w-node1 can be accessed from a shell
+  running within a container on another Pod.  In this case w-node2:
+
+
+  kubectl exec -it client -- sh
+     http://192.168.129.201:8080
+
+    
+  And the above also works.  Also, the shell running as a container within a Pod on w-node2 can 
+  access the IP address of w-node1:
+
+  ping 192.168.56.5
+
+  - However, the service-api running within Pod cannot be accessed from outside the cluster 
+    until a Service resource is created.  The next section will show how the Pod can be 
+    accessed from outside the cluster for development needs by running a local proxy that
+    will forward all calls from the Host computer to the pod running within the cluster.
+
+  *** The above is just researching what components can access one another within the cluster.
+  *** There would be of no reason to be doing the above as the IP addresses of Pods are not 
+  *** static.  Also, it would be a bad design if a Container running within one Pod on a 
+  *** node would use the IP address of another Node within the cluster.
+
+- The above shows that an IP address assigned to a Pod running on a node can be accessed by any
+  other node that is part of the cluster.
 
 - All the containers comprising of a solution should not be all located within the
   same Pod.  Only very closely related containers should be located within the same
   Pod.
 
-  - Since all containers within a Pod will be executed on the same worker machine,
-    the will both consume resources on that node and can't be relocated to a node
-    with additional resources.  
+- Since all containers within a Pod will be executed on the same worker machine,
+  they will all consume resources on that node and can't be relocated to a node
+  with additional resources.  
 
-  - Another reason why two containers many not be best located with the same Pod
-    is that it make scaling harder.  In Kubernetes scaling (replication) is at the
-    Pod level.  So if the Pod contains multiple containers, then they must be scaled 
-    together at the same time.
+- Another reason why two containers many not be best located with the same Pod
+  is that it make scaling harder.  In Kubernetes scaling (replication) is at the
+  Pod level.  So if the Pod contains multiple containers, then they must be scaled 
+  together at the same time.
 
-  - The main reason for having multiple containers in a Pod, is when one of the
-    containers contains the core process and the other is more of a "side-car"
-    process.  The side-car container execute code periodically (i.e.  check an API
-    for updates to data consumed by the main container process.)
+- The main reason for having multiple containers in a Pod, is when one of the
+  containers contains the core process and the other is more of a "side-car"
+  process.  The side-car container executes code periodically (i.e.  check an API
+  for updates to data consumed by the main container processes.)
 
-
-######################################################################################
-### Creating Resources using YAML
-######################################################################################
-
-- The above created resources (deployment) by using the command line.
-
-- This approach should not be used within production since the configuration 
-  is not documented.Instead resources can be defined in YAML.
-
-- If an existing resource exists within Kubernetes that was created at the
-  command line, the YAML can be generated.  This is also useful for viewing
-  a resources current configuration on the server.
-
-- The following command can be used to obtain an YAML definition for any
-  type of resource.  Below shows requesting YAML for the created Pod and
-  deployment.  The YAML can be very verbose and contains properties with
-  default values that would not typically be set.
-
-$ kubectl get pod
-
-NAME                            READY   STATUS    RESTARTS   AGE
-kubia-deploy-5d9f894958-smwgs   1/1     Running   0          40m
-
-$ kubectl get pod kubia-deploy-5d9f894958-smwgs -o yaml
-
-kubectl get deployment
-
-NAME           READY   UP-TO-DATE   AVAILABLE   AGE
-kubia-deploy   1/1     1            1           41m
-
-$ kubectl get deployment kubia-deploy -o yaml
-
-- The YAML file consists of the following sections:
-    - Metadata
-    - Specification
-    - Status
-
-- When defining a YAML file for a Pod, the Ports on which the container listens
-  can be specified.  This is just for documentation and has no bearing on how
-  the container or pod is created.
-
-- The following is going to delete the deployment resource that was created
-  by running the two command line calls and will rebuild the same resources
-  but defined within YAML.
-
-$ kubectl delete deployment deployment kubia-deploy
-$ kubectl delete service kubia-deploy
-
-
-Creating the Pod using YAML
-----------------------------------
-
-apiVersion: v1
-kind: Pod
-metadata:
-  name: kubia-pod
-spec:
-  containers:
-  - image: blgreco72dev/kubia
-    name: kubia
-    ports:
-    - containerPort: 8080
-      protocol: TCP
-
-
-
-- The following will submit the YAML
-$ kubectl create -f pod-resource.yaml 
-
-$ kubectl get pod
-
-NAME        READY   STATUS    RESTARTS   AGE
-kubia-pod   1/1     Running   0          101s
-
-- Applications running within containers typically write log files to standard
-out and standard error streams.
-
-- The logs for a givin pod can be see by issuing the following command:
-$ kubectl logs kubia-pod
-
-- If the Pod contains multiple containers, you must specify the container's name
-using the -c parameter.
-
-- A Pod's logs are deleted when the Pod no longer exists.  If logs need to be
-  persisted, they need to be written to a central error log store.
 
 ######################################################################################
 ### Port Forwarding
 ######################################################################################
 
+- Unless additional Kubernetes network resources are defined, a Pod cannot be 
+  accessed without having to ssh into a node that is part of the cluster as
+  shown above.  However, for testing specific nodes during development, 
+  port forwarding can be used.
+
 - The newly created pod cannot be accessed from outside the cluster since a service
   has not yet been defined.  However, the Pod can be communicated with using port
   forwarding to test the Pod.
 
+- Within one terminal, run the following:
+
 $ kubectl port-forward kubia-pod 8888:8080
+
+- The above is telling Kubernetes that the port 8888 on the host operating system
+  should be forwarded to port 8080 of the pod named kubia-pod.
 
 - In another terminal window, type the following to communicate with the container
   running within the Pod.
@@ -703,159 +521,514 @@ $ curl localhost:8888
 
 
 ######################################################################################
-### Labels
+### Creating Replication Controller
 ######################################################################################
+  
+- Before continuing, make sure the kubia-pod is deleted:
 
-- Labels are used to tag resources (such as pods) so they can be categorized 
-  and referenced as a set.
+ kubectl delete pod kubia-pod
 
-- Labels allows a group of related pods to be operated on as a whole Instead
-  of individually.
+- In kubernetes, Pod definition YAML files are rarely used and instead ReplicationController
+  resources are defined.  This will be shown but note that ReplicationController resources 
+  are no longer used by instead the very closely related ReplicaSet.
 
-- They are key/value parts associated with a resource.  The other resources,
-  can reference all tagged resources using a label selector.
+cat lessons/replication-ctl-definition.yaml 
 
 apiVersion: v1
-kind: Pod
+kind: ReplicationController
 metadata:
-  name: kubia-pod-labels
-  labels:
-    app: receipts
-    env: prod
+  name: kubia-rc
 spec:
-  containers:
-  - image: blgreco72dev/kubia
-    name: kubia
-    ports:
-    - containerPort: 8080
-      protocol: TCP
+  replicas: 3
+  selector:
+    app: kubia
+  template:
+    metadata:
+      name: kubia-pod
+      labels:
+        app: kubia
+    spec:
+      containers:      
+      -  name: kubia-container
+         image: blgreco72dev/kubia
+         ports:
+          - containerPort: 8080
 
-- The following can be used to view a pod's labels:
+$ kubectl create -f lessons/replication-ctl-definition.yaml 
+$ kubectl get pods -o wide
 
-kubectl get pods --show-labels
+NAME             READY   STATUS    RESTARTS   AGE   IP                NODE      NOMINATED NODE   READINESS GATES
+client           1/1     Running   11         16h   192.168.144.66    w-node2   <none>           <none>
+kubia-rc-c8t6g   1/1     Running   0          45s   192.168.129.202   w-node1   <none>           <none>
+kubia-rc-dktdk   1/1     Running   0          45s   192.168.144.67    w-node2   <none>           <none>
+kubia-rc-ldpxc   1/1     Running   0          45s   192.168.138.1     w-node3   <none>           <none>
 
-- Labels can be added and updated on pods:
+- The following command can be used to view Replication Controllers:
 
-$ kubectl label pod kubia-pod-labels env=test --overwrite
-$ kubectl label pod kubia-pod-labels version=2.0.4 
-$ kubectl label pod kubia-pod env=test
+kubectl get rc -o wide
 
-- Resources can be filtered based on their assigned labels:
+NAME       DESIRED   CURRENT   READY   AGE   CONTAINERS        IMAGES               SELECTOR
+kubia-rc   3         3         3       42m   kubia-container   blgreco72dev/kubia   app=kubia
 
-$ kubectl get pods -l env=test --show-labels
+- The above shows that the Replication Controller specifies that 3 Pods are desired and that there
+  are currently 3 that are ready.
 
-- Multiple selectors can be specified within a filter by separating each by a comma.
+- A Replication Controller is part of the Control Plane and is responsible for monitoring that a specified
+  number of Pods remain running at all times.  On each worker node, the Kubelet process is responsible for
+  making sure Pod containers remaining running.  If the Controller determines that a Pod is no longer running,
+  it will communicate with the Scheduler so another Pod is created on a Node belonging to the cluster.
 
-Node Selection Using Levels
---------------------------------
+- The above shows that Kubernetes created 3 instances of the Pod defined within the YAML definition.
 
-- This should only be used when needed.  Kubernetes should be in charge of determining
-  the node on which a pod should be executed.
+- Now that there are multiple Pods, each one has a random postfix value appended it its name.
 
-- While an exact node cannot be specified for running a pod, the characteristics of the
-  node (specified by labels) can be used to select a pod.
-
-- The following is used to add a label to a node:
-
-$ kubectl get nodes
-
-NAME       STATUS   ROLES    AGE   VERSION
-minikube   Ready    master   24h   v1.18.3
-
-$ kubectl label node minikube uat=true
-
-- Labels can be used to filter matching nodes:
-
-$ kubectl get nodes -l uat=true
-$ kubectl get nodes -l prod=true
-
-- Within a Pod's resource definition file, the characteristics of the node to deploy the
-  pod can be specified within the "spec" section with the property named "nodeSelector".
-
-######################################################################################
-### Resource Annotations
-######################################################################################
-
-- Annotations are key/value pairs similar to labels but are not used to select resources.
-- There are are a from of metadata.
-
-- Within a resource definition file, Annotations are specified using the "annotations" property
-  defined within the "metadata" section.
-
-- Annotations can also be added after the resource is created:
-
-$ kubectl annotate pod kubia-pod somecompany.com/build="144"
-
-- A pod's annotations can be seen as follows:
-
-$ kubectl describe pod kubia-pod
+- To validate that Kubernetes will maintain three running kube-rc Pods, the following will delete one of
+  the running Pods to see if a new one is created:
 
 
-######################################################################################
-### Namespaces
-######################################################################################
+$ kubectl delete pod kubia-rc-dktdk 
+$ kubectl get pods -o wide
 
-- Namespaces are used to associate a name with a group of resources.
+NAME             READY   STATUS    RESTARTS   AGE   IP                NODE      NOMINATED NODE   READINESS GATES
+client           1/1     Running   12         16h   192.168.144.66    w-node2   <none>           <none>
+kubia-rc-5qsj2   1/1     Running   0          48s   192.168.144.68    w-node2   <none>           <none>
+kubia-rc-c8t6g   1/1     Running   0          13m   192.168.129.202   w-node1   <none>           <none>
+kubia-rc-ldpxc   1/1     Running   0          13m   192.168.138.1     w-node3   <none>           <none>
 
-- The following will add another label to the kubia-prod-labels pod so both pods will have
-  a set of labels with the same set of key/value pairs.
+- The above shows that the Pod deleted on w-node2 was recreated since the Pod name is now different.
+- The scheduler determined that the new Pod should again be created on w-node2.
 
-$ kubectl label pod kubia-pod app=receipt
+- Next, ssh into w-node2 and shut it down.
 
-- The following will be used to define a namespace to group all "test" environment "receipt" pods 
-  from which a given solution is comprised.
+  ssh w-node2@192.168.56.6
+      sudo shutdown now
 
-- Use the next command to list all defined namespace within a cluster:
+- Run the following command until it shows that Kubernetes had detected that w-node2 is offline and
+  creates a new Pod instance on one of the other worker nodes.  Note:  It can take someone for 
+  Kubernetes to detect a missing Node within the cluster.
 
-$ kubectl get namespaces
+$ kubectl get pods -o wide
 
-- If not otherwise specified, resources are associated with the default namespace.  Also, only
-  resources with the default namespace are returned when listing resources if not specified.
+NAME             READY   STATUS        RESTARTS   AGE     IP                NODE      NOMINATED NODE   READINESS GATES
+client           1/1     Terminating   12         16h     192.168.144.66    w-node2   <none>           <none>
+kubia-rc-4twvc   1/1     Running       0          2m29s   192.168.138.2     w-node3   <none>           <none>
+kubia-rc-5qsj2   1/1     Terminating   0          11m     192.168.144.68    w-node2   <none>           <none>
+kubia-rc-c8t6g   1/1     Running       0          24m     192.168.129.202   w-node1   <none>           <none>
+kubia-rc-ldpxc   1/1     Running       0          24m     192.168.138.1     w-node3   <none>           <none>
 
-- Namespaces can be created using yaml files or from the command line.
+- The above shows that the Pod running on w-node2 has been terminated and a new Pod is running w-node3.  
+- Now w-node3 has two instances of the pod running.
+- Also note that the client Pod was also running on w-node2 but another instance has and will not be created.
+- The client pod was not created by a controller resource an therefore nothing is monitoring it. 
+
+- Next, start back up w-node2.  Once started, the two pending Pods will be deleted.  The new Pod created on 
+  w-node3 however will remain and not be terminated and automatically created back on w-node2.
+
+
+$ kubectl get pods -o wide
+
+NAME             READY   STATUS    RESTARTS   AGE     IP                NODE      NOMINATED NODE   READINESS GATES
+kubia-rc-4twvc   1/1     Running   0          9m10s   192.168.138.2     w-node3   <none>           <none>
+kubia-rc-c8t6g   1/1     Running   0          30m     192.168.129.202   w-node1   <none>           <none>
+kubia-rc-ldpxc   1/1     Running   0          30m     192.168.138.1     w-node3   <none>           <none>
+
+- In order to get one off the Pods off of w-node3 and back to w-node2, either the Replication Controller can be 
+  deleted and recreated or one of the nodes running on w-node3 can be deleted.  There is not guarantee if one Pod
+  is deleted on w-node3 that the new one will be created on w-node2, but since there is no reason for Kubernetes
+  not to select w-node2 due to limited resources, it will most likely be created there:
+
+kubectl delete pod kubia-rc-ldpxc
+
+- Unlike taking w-node2 offline, Kubernetes will almost instantly detect this state and create a new Pod.
+
+NAME             READY   STATUS    RESTARTS   AGE   IP                NODE      NOMINATED NODE   READINESS GATES
+kubia-rc-4twvc   1/1     Running   0          13m   192.168.138.2     w-node3   <none>           <none>
+kubia-rc-b9vrp   1/1     Running   0          47s   192.168.144.69    w-node2   <none>           <none>
+kubia-rc-c8t6g   1/1     Running   0          34m   192.168.129.202   w-node1   <none>           <none>
+
+Next, create another instance of the client Pod:
+
+kubectl run client --image blgreco72dev/ubuntu-tools
+ubectl get pods -o wide
+
+NAME             READY   STATUS    RESTARTS   AGE     IP                NODE      NOMINATED NODE   READINESS GATES
+client           1/1     Running   0          31s     192.168.129.203   w-node1   <none>           <none>
+kubia-rc-4twvc   1/1     Running   0          18m     192.168.138.2     w-node3   <none>           <none>
+kubia-rc-b9vrp   1/1     Running   0          5m54s   192.168.144.69    w-node2   <none>           <none>
+kubia-rc-c8t6g   1/1     Running   0          39m     192.168.129.202   w-node1   <none>           <none>
+
+
+- The Describe command can be used to see ReplicationController details.
+$ kubectl describe rc kubia-rc
+
+
+Events:
+  Type    Reason            Age   From                    Message
+  ----    ------            ----  ----                    -------
+  Normal  SuccessfulCreate  53m   replication-controller  Created pod: kubia-rc-c8t6g
+  Normal  SuccessfulCreate  53m   replication-controller  Created pod: kubia-rc-dktdk
+  Normal  SuccessfulCreate  53m   replication-controller  Created pod: kubia-rc-ldpxc
+  Normal  SuccessfulCreate  40m   replication-controller  Created pod: kubia-rc-5qsj2
+  Normal  SuccessfulCreate  31m   replication-controller  Created pod: kubia-rc-4twvc
+  Normal  SuccessfulCreate  19m   replication-controller  Created pod: kubia-rc-b9vrp
+
+
+- The above listed events show that first 3 Pods being created.  Then the next three 
+  entries shows the new pods that where created as the above actions where taken to
+  test the Replication Controller.
+
+------------------------------------------------------------------------------------------------
+
+- There is not a direct tie between Pods and ReplicationControllers.  The Pods associated
+  with a controller are any Pods for which its labels match the controller's selector at
+  any specific point in time.
+
+- So if a Pods label no longer matches the controller's selector, the controller will 
+  communicate with the schedule so another Pod is created on a node.
+
+- The running Replication Controller has the following selector:  
+
+    app: kubia
+
+- The following command can be used to display a specific label value associated with Pods:
+
+ $ kubectl get pods -o wide -L app
+
+NAME             READY   STATUS    RESTARTS   AGE   IP                NODE      NOMINATED NODE   READINESS GATES   APP
+client           1/1     Running   1          20m   192.168.129.203   w-node1   <none>           <none>            
+kubia-rc-4twvc   1/1     Running   0          38m   192.168.138.2     w-node3   <none>           <none>            kubia
+kubia-rc-b9vrp   1/1     Running   0          26m   192.168.144.69    w-node2   <none>           <none>            kubia
+kubia-rc-c8t6g   1/1     Running   0          60m   192.168.129.202   w-node1   <none>           <none>            kubia
+
+- Next, the "app" label for one of the pods will be changed to no longer match the selector:
+
+ $ kubectl label pod kubia-rc-4twvc app=something --overwrite=true
+ $ kubectl get pods -o wide -L app
+
+NAME             READY   STATUS    RESTARTS   AGE   IP                NODE      NOMINATED NODE   READINESS GATES   APP
+client           1/1     Running   1          22m   192.168.129.203   w-node1   <none>           <none>            
+kubia-rc-4twvc   1/1     Running   0          39m   192.168.138.2     w-node3   <none>           <none>            something
+kubia-rc-6nwxg   1/1     Running   0          14s   192.168.138.3     w-node3   <none>           <none>            kubia
+kubia-rc-b9vrp   1/1     Running   0          27m   192.168.144.69    w-node2   <none>           <none>            kubia
+kubia-rc-c8t6g   1/1     Running   0          61m   192.168.129.202   w-node1   <none>           <none>            kubia
+
+- Almost instantly, Kubernetes detected that for a short period of time that only two Pods matched the selector as specified
+  by the replication controller.  After this was detected, the Controller communicated to the Scheduler that another Pod 
+  matching the template defined within the Replication Controller needed to be created.  
+
+- The updated pod however will still exist.  It is just no longer associated with the controller.
+- Next, the Pod with the renamed label will be changed back.
+
+$ kubectl label pod kubia-rc-4twvc app=kubia --overwrite=true
+$ kubectl get pods -o wide -L app
+
+NAME             READY   STATUS        RESTARTS   AGE     IP                NODE      NOMINATED NODE   READINESS GATES   APP
+client           1/1     Running       1          26m     192.168.129.203   w-node1   <none>           <none>            
+kubia-rc-4twvc   1/1     Running       0          44m     192.168.138.2     w-node3   <none>           <none>            kubia
+kubia-rc-6nwxg   1/1     Terminating   0          4m19s   192.168.138.3     w-node3   <none>           <none>            kubia
+kubia-rc-b9vrp   1/1     Running       0          31m     192.168.144.69    w-node2   <none>           <none>            kubia
+kubia-rc-c8t6g   1/1     Running       0          65m     192.168.129.202   w-node1   <none>           <none>            kubia
+
+- Now that there are 4 nodes matching the selector of the Replication Controller, Kubernetes detected this and is terminating
+  one of the nodes so only a total of 3 will be running.
+
+$ kubectl get pods -o wide -L app
+
+NAME             READY   STATUS    RESTARTS   AGE   IP                NODE      NOMINATED NODE   READINESS GATES   APP
+client           1/1     Running   1          27m   192.168.129.203   w-node1   <none>           <none>            
+kubia-rc-4twvc   1/1     Running   0          45m   192.168.138.2     w-node3   <none>           <none>            kubia
+kubia-rc-b9vrp   1/1     Running   0          33m   192.168.144.69    w-node2   <none>           <none>            kubia
+kubia-rc-c8t6g   1/1     Running   0          67m   192.168.129.202   w-node1   <none>           <none>            kubia
+
+
+- The Pod's template within a ReplicationController can be updated.  However, any existing pods will not be affected.
+  To apply the update the the existing pods, they need to be first deleted so new ones will be created by the updated
+  replication controller.  For example, if the selector is updated to be more specific by adding a check on an additional 
+  lab label, not of the existing pods would match and new ones would be created.
+
+- The following will delete the replication controller and any nodes matching the selector:
+
+$ kubectl delete -f lessons/replication-ctl-definition.yaml 
+$ kubectl get pods -o wide
+
+NAME             READY   STATUS        RESTARTS   AGE   IP                NODE      NOMINATED NODE   READINESS GATES
+client           1/1     Running       2          34m   192.168.129.203   w-node1   <none>           <none>
+kubia-rc-4twvc   0/1     Terminating   0          52m   <none>            w-node3   <none>           <none>
+kubia-rc-b9vrp   0/1     Terminating   0          40m   192.168.144.69    w-node2   <none>           <none>
+kubia-rc-c8t6g   0/1     Terminating   0          74m   192.168.129.202   w-node1   <none>           <none>
+
+$ kubectl get pods -o wide
+
+NAME     READY   STATUS    RESTARTS   AGE   IP                NODE      NOMINATED NODE   READINESS GATES
+client   1/1     Running   2          35m   192.168.129.203   w-node1   <none>           <none>
+
+- A resource definition can be edited within the terminal as follows:
+$ kubectl edit rc kubia-rc
+
+** By default vi is used as the editor.  The following will update so nano editor can be used:
+
+export KUBE_EDITOR="/usr/bin/nano"
+
+- Next, an additional label will be added to the Pod's template.  After making the change, the
+  pods and their labels will be listed.  Note that the addition label has not effect.  To update
+  the nodes, they need to be deleted.  This will trigger the node to be recreated since the 
+  current number no longer matches the desired value of 3.
+
+- Add a label:   ver: one 
+- To the Replication Controller selector and also to the Pod template.
+
+- Once saved, Kubernetes will determine that there are no nodes containing both the app and ver
+  labels and will use the associated template to create three new nodes:
+
+kubectl get pods -o wide -L app -L  ver
+
+kubia-rc-2cwf4   1/1     Running   0          7m54s   192.168.129.204   w-node1   <none>           <none>            kubia   
+kubia-rc-62md4   1/1     Running   0          7m54s   192.168.138.4     w-node3   <none>           <none>            kubia   
+kubia-rc-b7lh8   1/1     Running   0          2m14s   192.168.144.71    w-node2   <none>           <none>            kubia   one
+kubia-rc-cdvk2   1/1     Running   0          2m14s   192.168.138.5     w-node3   <none>           <none>            kubia   one
+kubia-rc-g9q4b   1/1     Running   0          7m54s   192.168.144.70    w-node2   <none>           <none>            kubia   
+kubia-rc-rhl4b   1/1     Running   0          2m14s   192.168.129.205   w-node1   <none>           <none>            kubia   one
+
+- Now there are a total of 6 Pods running.  Three of which are no longer associated with the Replication Controller.
+- To clean up the pods so there are only 3 matching the updated Replication Controller definition, delete all pods
+  having a label of "app=kubia".  This will cause Kubernetes to detected that there are now no Pods matching the 
+  Replication Controllers label and create 3 new ones.
+
+$ kubectl delete pods -l app=kubia
+
+- After all the Pods are deleted, run the following to confirm the new state:
+
+kubectl get pods -o wide -L app -L  ver
+
+NAME             READY   STATUS    RESTARTS   AGE   IP                NODE      NOMINATED NODE   READINESS GATES   APP     VER
+client           1/1     Running   3          51m   192.168.129.203   w-node1   <none>           <none>                    
+kubia-rc-66hxp   1/1     Running   0          50s   192.168.129.206   w-node1   <none>           <none>            kubia   one
+kubia-rc-b8wjd   1/1     Running   0          50s   192.168.138.6     w-node3   <none>           <none>            kubia   one
+kubia-rc-h7tjm   1/1     Running   0          50s   192.168.144.72    w-node2   <none>           <none>            kubia   one
+
+
+------------------------------------------------------------------------------------------------
+ Horizontally scaling pods
+------------------------------------------------------------------------------------------------
+
+- The number of replicas can be changed for a Replication Controller.
+
+kubectl scale rc kubia-rc --replicas=5
+kubectl get pods -o wide
+
+NAME             READY   STATUS    RESTARTS   AGE     IP                NODE      NOMINATED NODE   READINESS GATES
+client           1/1     Running   3          54m     192.168.129.203   w-node1   <none>           <none>
+kubia-rc-66hxp   1/1     Running   0          3m45s   192.168.129.206   w-node1   <none>           <none>
+kubia-rc-9pbwb   1/1     Running   0          77s     192.168.144.73    w-node2   <none>           <none>
+kubia-rc-b8wjd   1/1     Running   0          3m45s   192.168.138.6     w-node3   <none>           <none>
+kubia-rc-bdwg8   1/1     Running   0          77s     192.168.138.7     w-node3   <none>           <none>
+kubia-rc-h7tjm   1/1     Running   0          3m45s   192.168.144.72    w-node2   <none>           <none>
+
+- The above shows that two more Pods where created.
+
+- The replication controller can also have it definition edited:
+
+kubectl edit rc kubia-rc
+
+- When deleting a ReplicationController, the associated Pods will also be deleted.
+
+- But since the ReplicationController and Pods can exist independently, the Pods
+  can remain and only the ReplicationController controller deleted.
+
+$ kubectl delete rc kubia-rc --cascade=false
+$ kubectl get rc
+$ kubectl get pods -o wide -L app -L  ver
+
+NAME             READY   STATUS    RESTARTS   AGE     IP                NODE      NOMINATED NODE   READINESS GATES   APP     VER
+client           1/1     Running   3          57m     192.168.129.203   w-node1   <none>           <none>                    
+kubia-rc-66hxp   1/1     Running   0          7m13s   192.168.129.206   w-node1   <none>           <none>            kubia   one
+kubia-rc-9pbwb   1/1     Running   0          4m45s   192.168.144.73    w-node2   <none>           <none>            kubia   one
+kubia-rc-b8wjd   1/1     Running   0          7m13s   192.168.138.6     w-node3   <none>           <none>            kubia   one
+kubia-rc-bdwg8   1/1     Running   0          4m45s   192.168.138.7     w-node3   <none>           <none>            kubia   one
+kubia-rc-h7tjm   1/1     Running   0          7m13s   192.168.144.72    w-node2   <none>           <none>            kubia   one
+
+$ kubectl get rc
+No resources found in default namespace.
+
+- The above Pods are not longer being monitored by a Replication Controller.  Now if one of the Pods is deleted, a new
+  replacement Pod will no longer be created:
+
+$ kubectl delete pod kubia-rc-h7tjm
+
+- After this command is executed, there will now only be 4 kubia-rc pods running:
+
+$ kubectl get pods -o wide -L app -L  ver
+
+NAME             READY   STATUS    RESTARTS   AGE     IP                NODE      NOMINATED NODE   READINESS GATES   APP     VER
+client           1/1     Running   4          62m     192.168.129.203   w-node1   <none>           <none>                    
+kubia-rc-66hxp   1/1     Running   0          11m     192.168.129.206   w-node1   <none>           <none>            kubia   one
+kubia-rc-9pbwb   1/1     Running   0          9m31s   192.168.144.73    w-node2   <none>           <none>            kubia   one
+kubia-rc-b8wjd   1/1     Running   0          11m     192.168.138.6     w-node3   <none>           <none>            kubia   one
+kubia-rc-bdwg8   1/1     Running   0          9m31s   192.168.138.7     w-node3   <none>           <none>            kubia   one
+
+- The Pods can be re-associated with a Controller by creating a new controller with a selector
+  matching the desired nodes.
+
+- The following will re-create the controller by submitting the yaml file that is saved to disk.
+
+- After it is created, there will be one additional Pod since the Replication Controller
+  specifies that there should only be 3.  Also, the specified selector is a sub set of
+  the labels existing on the currently running Pod (since we updated the Replication 
+  Controller at once point) but it has since been deleted. 
+
+$ cat lessons/replication-ctl-definition.yaml
 
 apiVersion: v1
-kind: Namespace
+kind: ReplicationController
 metadata:
-  name: receipt-solution
+  name: kubia-rc
+spec:
+  replicas: 3
+  selector:
+    app: kubia
+  template:
+    metadata:
+      name: kubia-pod
+      labels:
+        app: kubia
+    spec:
+      containers:      
+      -  name: kubia-container
+         image: blgreco72dev/kubia
+         ports:
+          - containerPort: 8080
 
 
-$ kubectl create -f pod-namespace.yml
+$ kubectl create -f lessons/replication-ctl-definition.yaml 
+$ kubectl get pods -o wide -L app -L  ver
 
-$ kubectl create namespace payment-solution
+NAME             READY   STATUS        RESTARTS   AGE   IP                NODE      NOMINATED NODE   READINESS GATES   APP     VER
+client           1/1     Running       4          69m   192.168.129.203   w-node1   <none>           <none>                    
+kubia-rc-66hxp   1/1     Running       0          18m   192.168.129.206   w-node1   <none>           <none>            kubia   one
+kubia-rc-9pbwb   1/1     Running       0          16m   192.168.144.73    w-node2   <none>           <none>            kubia   one
+kubia-rc-b8wjd   1/1     Running       0          18m   192.168.138.6     w-node3   <none>           <none>            kubia   one
+kubia-rc-bdwg8   1/1     Terminating   0          16m   192.168.138.7     w-node3   <none>           <none>            kubia   one
+
+- The above shows one of the Pods are being terminated to match the number of replicas specified within the Replication Controller.
+
+$ kubectl get pods -o wide -L app -L  ver
+
+NAME             READY   STATUS    RESTARTS   AGE   IP                NODE      NOMINATED NODE   READINESS GATES   APP     VER
+client           1/1     Running   4          71m   192.168.129.203   w-node1   <none>           <none>                    
+kubia-rc-66hxp   1/1     Running   0          20m   192.168.129.206   w-node1   <none>           <none>            kubia   one
+kubia-rc-9pbwb   1/1     Running   0          17m   192.168.144.73    w-node2   <none>           <none>            kubia   one
+kubia-rc-b8wjd   1/1     Running   0          20m   192.168.138.6     w-node3   <none>           <none>            kubia   one
+
+- Now the number of pods match the desired number.
+- Next, delete one of the Pods so a new replacement Pod is created.  Since the template within the Replication Controller does
+  not specify the "ver" label, the newly created pod will only have the "app" label:
+
+$ kubectl get pods -o wide -L app -L  ver
+
+NAME             READY   STATUS    RESTARTS   AGE   IP                NODE      NOMINATED NODE   READINESS GATES   APP     VER
+client           1/1     Running   4          73m   192.168.129.203   w-node1   <none>           <none>                    
+kubia-rc-66hxp   1/1     Running   0          23m   192.168.129.206   w-node1   <none>           <none>            kubia   one
+kubia-rc-9pbwb   1/1     Running   0          20m   192.168.144.73    w-node2   <none>           <none>            kubia   one
+kubia-rc-fghws   1/1     Running   0          38s   192.168.138.8     w-node3   <none>           <none>            kubia 
+
+- Lastly, delete the Replication Controller and any Pods associated by having matching labels:
+
+$ kubectl delete -f lessons/replication-ctl-definition.yaml 
+$ kubectl get pods -o wide 
+
+NAME             READY   STATUS        RESTARTS   AGE     IP                NODE      NOMINATED NODE   READINESS GATES
+client           1/1     Running       5          75m     192.168.129.203   w-node1   <none>           <none>
+kubia-rc-66hxp   1/1     Terminating   0          24m     192.168.129.206   w-node1   <none>           <none>
+kubia-rc-9pbwb   1/1     Terminating   0          22m     192.168.144.73    w-node2   <none>           <none>
+kubia-rc-fghws   1/1     Terminating   0          2m13s   192.168.138.8     w-node3   <none>           <none>
+
+$ kubectl get pods -o wide 
+
+NAME     READY   STATUS    RESTARTS   AGE   IP                NODE      NOMINATED NODE   READINESS GATES
+client   1/1     Running   5          75m   192.168.129.203   w-node1   <none>           <none>
+
+######################################################################################
+### ReplicaSet
+######################################################################################
+
+- This is another resource type similar to a ReplicationController.
+- The ReplicaSet now is mostly used instead of the ReplicationController.
+
+- These two type of controllers are basically the same.  However, the ReplicaSet has 
+  a more extensive selector support when compared to a ReplicationController.
 
 
-- Namespaces can be specified within a resource definition file by adding a "namespace" property
-  to the "metadata" section.  Or the --namespace argument can be specified when calling kubectl
-  create when applying a yaml file.
+cat lessons/replica-set-definition.yaml 
 
-- Name spaces do not provide any type of isolation.  For example, pods assigned to different 
-  namespaces can still communicate within the cluster.
+apiVersion: apps/v1
+kind: ReplicaSet
+metadata:
+  name: kubia-set
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: kubia
+  template:
+    metadata:
+      labels:
+        app: kubia
+    spec:
+      containers:
+      - name: kubia-container
+        image: blgreco72dev/kubia
 
-- Labels and Namespaces can be used to apply an operation to multiple resources at the same time.
-- The following will delete all nodes defining a label with a specific value:
+$ kubectl create -f lessons/replica-set-definition.yaml 
 
-$ kubectl delete pods -l app=receipt
+- Execute the following to see the created replication set:
 
-- Also, all Pods contained within a namespace can be deleted by deleting the namespace.  This will
-  also delete the namespace.
+$ kubectl get rs
 
-$ kubectl delete namespace receipt-solution
+NAME        DESIRED   CURRENT   READY   AGE
+kubia-set   3         3         3       26s
 
-- If you want to keep the namespace and just want to delete all Pods within the namespace, 
-  the following command can be used:
+- The following now shows the current running Pods:
 
-$ kubectl delete pods --all
+$ kubectl get pods -o wide
 
-- The above command will delete all resources contained within the current namespace.
+NAME              READY   STATUS    RESTARTS   AGE   IP                NODE      NOMINATED NODE   READINESS GATES
+client            1/1     Running   5          81m   192.168.129.203   w-node1   <none>           <none>
+kubia-set-6ddvq   1/1     Running   0          75s   192.168.129.207   w-node1   <none>           <none>
+kubia-set-9987k   1/1     Running   0          75s   192.168.144.74    w-node2   <none>           <none>
+kubia-set-bj6cz   1/1     Running   0          75s   192.168.138.9     w-node3   <none>           <none>
 
-The current namespace to which all commands will apply can be set as follows:
+- And the describe command can be used to view the details of a ReplicaSet.
 
-$ kubectl config set-context --current --namespace=receipt-solution
+$  kubectl describe rs kubia-set
 
-- The following command can be used to view the current context:
+Name:         kubia-set
+Namespace:    default
+Selector:     app=kubia
+Labels:       <none>
+Annotations:  <none>
+Replicas:     3 current / 3 desired
+Pods Status:  3 Running / 0 Waiting / 0 Succeeded / 0 Failed
+Pod Template:
+  Labels:  app=kubia
+  Containers:
+   kubia-container:
+    Image:        blgreco72dev/kubia
+    Port:         <none>
+    Host Port:    <none>
+    Environment:  <none>
+    Mounts:       <none>
+  Volumes:        <none>
+Events:
+  Type    Reason            Age    From                   Message
+  ----    ------            ----   ----                   -------
+  Normal  SuccessfulCreate  3m23s  replicaset-controller  Created pod: kubia-set-9987k
+  Normal  SuccessfulCreate  3m23s  replicaset-controller  Created pod: kubia-set-bj6cz
+  Normal  SuccessfulCreate  3m23s  replicaset-controller  Created pod: kubia-set-6ddvq
 
-$ kubectl config current-context
+
+- Delete the ReplicaSet and the currently managed nodes:
+
+$ kubectl delete rs kubia-set
 
 
 ######################################################################################
@@ -873,7 +1046,7 @@ $ kubectl config current-context
 
 - On each node, the Kubelet process monitors each running container and will make
   sure it remaining running.  If the Container's main process crashes, the Kubelet
-  process will restart the container.
+  process will recreate a new container.
 
 - However, a container can become unhealthy without the main process crashing so the
   container must provide a health-check that can be checked by Kubelet.
@@ -902,355 +1075,13 @@ $ kubectl config current-context
 
 - Pods are identified by labels and when creating a Controller, these labels are
   used to identify the Pods that the Controller should monitor and assure that
-  the configured desired number matches the current runnings.
+  the configured desired number matches the current running.
 
 - If a Pods labels are changed, from what is specified within the Controller,
   the Pod is not stopped - it is just no longer managed by the controller.  If
   a label is added or changed that results in the Pod matching the Controller's
   selector, it will then be managed by the controller.
-
-######################################################################################
-### Creating Replication Controller
-######################################################################################
   
-apiVersion: v1
-kind: ReplicationController
-metadata:
-  name: kubia-rc
-spec:
-  replicas: 3
-  selector:
-    app: kubia
-  template:
-    metadata:
-      name: kubia-pod
-      labels:
-        app: kubia
-    spec:
-      containers:      
-      -  name: kubia-container
-         image: blgreco72dev/kubia
-         ports:
-          - containerPort: 8080
-
-$ kubectl create -f replication-controller.yaml 
-$ kubectl get pods
-
-NAME             READY   STATUS    RESTARTS   AGE
-kubia-rc-24sr6   1/1     Running   0          7m24s
-kubia-rc-ngrwm   1/1     Running   0          7m24s
-kubia-rc-qjjqc   1/1     Running   0          7m24s
-
-- Next, a Pod listed above will be deleted to validate a new one is created
-  by the Replication Controller.
-
-$ kubectl delete pod kubia-rc-24sr6
-
-$ kubectl get pods
-
-NAME             READY   STATUS    RESTARTS   AGE
-kubia-rc-ngrwm   1/1     Running   0          11m
-kubia-rc-qjjqc   1/1     Running   0          11m
-kubia-rc-rngqv   1/1     Running   0          51s
-
-- The following command can be used to list all defined ReplicationControllers:
-
-$ kubectl get rc
-
-NAME             READY   STATUS    RESTARTS   AGE
-kubia-rc-ngrwm   1/1     Running   0          11m
-kubia-rc-qjjqc   1/1     Running   0          11m
-kubia-rc-rngqv   1/1     Running   0          51s
-
-- The Describe command can be used to see ReplicationController details.
-$ kubectl describe rc kubia-rc
-
-- The following will show nodes on which the pods are running.  Since minikube
-  only has one note, the names listed will all be the same.
-
-$ kubectl get pods -o wide
-
-- There is not a direct tie between Pods and ReplicationControllers.  The Pods associated
-  with a controller are any Pods for which its labels match the controller's selector at
-  any specific point in time.
-
-- So if a Pods label no longer matches the controller's selector, the controller will 
-  communicate with the schedule so another Pod is created on a node.
-
-$ kubectl label pod kubia-rc-ngrwm app=something --overwrite=true
-
-- After running the above command, another Pod will be created since prior pod that was
-  a member of the replication controller no longer matches the selector.  The updated 
-  pod however will still exist.  It is just no longer associated with the controller.
-
-  $ kubectl get pods -L app
-
-NAME             READY   STATUS    RESTARTS   AGE     APP
-kubia-rc-d2vjh   1/1     Running   0          2m42s   kubia
-kubia-rc-ngrwm   1/1     Running   0          37m     something
-kubia-rc-qjjqc   1/1     Running   0          37m     kubia
-kubia-rc-rngqv   1/1     Running   0          26m     kubia
-
-
-- Next, the Pod with the renamed label will be changed back.
-
-$ kubectl get pods -L app
-
-NAME             READY   STATUS        RESTARTS   AGE     APP
-kubia-rc-d2vjh   1/1     Terminating   0          5m35s   kubia
-kubia-rc-ngrwm   1/1     Running       0          39m     kubia
-kubia-rc-qjjqc   1/1     Running       0          39m     kubia
-kubia-rc-rngqv   1/1     Running       0          29m     kubia
-
-- The above shows that this resulted in having 4 nodes and not 3 as defined by the 
-controller.  The controller detected this and issues a call to a node to terminate 
-a running instance of the Pod.
-
-- The Pod's template within a ReplicationController can be updated.  However, any 
-  existing pods will not be affected.  To apply the update the the existing pods,
-  they need to be first deleted so new ones will be created by the replication 
-  controller.
-
-The following will delete the replication controller and any nodes matching the selector:
-
-$ kubectl delete -f replication-controller-updated.yaml
-
-- A resource definition can be edited within the terminal as follows:
-$ kubectl edit rc kubia-rc
-
-** By default vi is used as the editor.  The following will update so nano editor can be used:
-
-export KUBE_EDITOR="/usr/bin/nano"
-
-- Next, an additional label will be added to the Pod's template.  After making the change, the
-  pods and their labels will be listed.  Note that the addition label has not effect.  To update
-  the nodes, they need to be deleted.  This will trigger the node to be recreated since the 
-  current number no longer matches the desired value of 3.
-
-- Add a label:   version: "3.0.4"
-
-- Exit the editor and run the following:
-
-$ kubectl get pods -L app -L  version
-
-NAME             READY   STATUS    RESTARTS   AGE   APP     VERSION
-kubia-rc-5q684   1/1     Running   0          12m   kubia   
-kubia-rc-mfkkr   1/1     Running   0          12m   kubia   
-kubia-rc-vzhbb   1/1     Running   0          12m   kubia 
-
-- The results show that none of the running pods have the new label.
-
-- Delete one of the Pods so it will be recreated by the controller:
-
- $ kubectl delete pod kubia-rc-vzhbb
-
-- After the Pod is delete, re-execute the prior command again:
-
-$ kubectl get pods -L app -L  version
-
-NAME             READY   STATUS    RESTARTS   AGE   APP     VERSION
-kubia-rc-5q684   1/1     Running   0          14m   kubia   
-kubia-rc-dn6fr   1/1     Running   0          78s   kubia   3.0.4
-kubia-rc-mfkkr   1/1     Running   0          14m   kubia 
-
-- The above shows that the newly created Pod now has the new version.
-
-- The following will delete all the nodes so they can be recrated:
-
-$ kubectl delete pods -l app=kubia
-
-
- Horizontally scaling pods
-----------------------------------
-
-- The number of replicas can be changed for a Replication Controller.
-
-kubectl scale rc kubia-rc --replicas=6
-
-- The replication controller can also have it definition edited:
-
-kubectl edit rc kubia-rc
-
-- When deleting a ReplicationController, the associated Pods will also be deleted.
-- But since the ReplicationController and Pods can exist independently, the Pods
-  can remain and only the ReplicationController controller deleted.
-
-$ kubectl delete rc kubia-rc --cascade=false
-
-$ kubectl get pods
-
-NAME             READY   STATUS    RESTARTS   AGE
-kubia-rc-c5jwb   1/1     Running   0          18m
-kubia-rc-m2rhj   1/1     Running   0          13m
-kubia-rc-mp842   1/1     Running   0          18m
-kubia-rc-tdqmv   1/1     Running   0          18m
-
-- Now the pods are not being managed by any controller.
-- This can be shown by deleting one of the Pods.  Since there is no longer a replication Controller
-  managing the pods, it will no longer be recreated.
-
-$ kubectl delete pod kubia-rc-c5jwb
-$ kubectl delete pod kubia-rc-m2rhj
-
-- At this point only two Pods will remain.
-
-- The Pods can be re-associated with a Controller by creating a new controller with a selector
-  matching the desired nodes.
-
-- The following will re-create the controller by submitting tye yaml file.
-- After it is created, another Pod will be created since the ReplicationController specifies 
-  that there should be 3 running pods.
-
-######################################################################################
-### ReplicaSet
-######################################################################################
-
-- This is another resource type similar to a ReplicationController.
-- The ReplicaSet now is mostly used instead of the ReplicationController.
-
-- These two type of controllers are basically the same.  However, the ReplicaSet has 
-  a more extensive selector support when compared to a ReplicationController.
-
-- Currently there are 3 Pods running.  The following is going to delete the ReplicationController
-  but leave the Pods running.  
-- Then a new ReplicaSet will be defined containing a selector that will included the running Pods.
-- This will then cause the Pods to be managed by the new ReplicaSet.
-
-- Delete the ReplicationController leaving the Pods:
-
-$ kubectl delete rc kubia-rc --cascade=false
-
-apiVersion: apps/v1
-kind: ReplicaSet
-metadata:
-  name: kubia-set
-spec:
-  replicas: 3
-  selector:
-    matchLabels:
-      app: kubia
-  template:
-    metadata:
-      labels:
-        app: kubia
-    spec:
-      containers:
-      - name: kubia-container
-        image: blgreco72dev/kubia
-
-$ kubectl create -f replica-set.yaml 
-
-- Execute the following to see the created replication set:
-
-$ kubectl get rs
-
-NAME        DESIRED   CURRENT   READY   AGE
-kubia-set   3         3         3       2m23s
-
-- And the describe command can be used to view the details of a ReplicaSet.
-
-$  kubectl describe rs
-
-- Delete the ReplicaSet and the currently managed nodes:
-
-$ kubectl delete rs kubia-set
-
-######################################################################################
-### DaemonSet
-######################################################################################
-
-- Allows running a specific Pod on all Nodes belonging to the cluster.
-
-- If a new Node is added to the Cluster, the DaemonSet will automatically create a new Pod 
-  instance on that node.
-
-- Also, a DaemonSet can be defined to run a Pod on a set of Nodes meeting a specific criteria.
-
-- The following is a definition for a DaemonSet:
-
-apiVersion: apps/v1
-kind: DaemonSet
-metadata:
-  name: daemon-test
-spec:
-  selector:
-    matchLabels:
-      app: daemon-test
-  template:
-    metadata:
-      labels:
-        app: daemon-test
-    spec:
-      nodeSelector:
-        disk: ssd
-      containers:
-      - name: main
-        image: blgreco72dev/kubia
-
-$ kubectl create -f daemon-set.yaml
-
-- At this point, zero Pods will have been created.  Currently there are no nodes
-  labeled with drive: ssd
-
-$ kubectl get pods
-
-No resources found in default namespace.
-
-- Next label some nodes with the needed label:
-
-$ kubectl label node minikube disk=ssd
-
-$ kubectl get pods
-NAME                READY   STATUS    RESTARTS   AGE
-daemon-test-jlszm   1/1     Running   0          31s
-
-
-######################################################################################
-### Jobs
-######################################################################################
-- The other controller types create a number of Pods and makes sure they
-  are always running to match the number of specified replica.
-
-- Jobs create a Pod for executing a container process.  After the process completes,
-  the Pod is removed.
-
-- If a node goes down when a Job is running, a Pod will be created on another node to continue
-  until the job successfully completes.
-
-- A Pod for a Job does not run indefinitely so the restartPolicy must be specified as OnFailure or Never.
-
-apiVersion: batch/v1
-kind: Job
-metadata:
-  name: batch-job
-spec:
-  template:
-    metadata:
-      labels:
-        app: batch-job
-    spec:
-      restartPolicy: OnFailure
-      containers:
-      - name: main
-        image: luksa/batch-job
-
-
-- After the job completes, the Pod will remain.  This allows you to check the logs if needed.
-
-
-$ kubectl get pods
-
-NAME                READY   STATUS    RESTARTS   AGE
-batch-job-tkcl6     1/1     Running   0          2m55s
-
-NAME                READY   STATUS      RESTARTS   AGE
-batch-job-tkcl6     0/1     Completed   0          2m35s
-
-
-----------------------------------------
-CronJob
-----------------------------------------
-- These are similar to Jobs but they can be scheduled to run on an interval.  
 
 
 ######################################################################################
@@ -1674,6 +1505,567 @@ $ curl http://kubia.example.com
   can be defined, one for each node-port service (which is defined on a set of pods
   having matching labels) then Ingress uses the path to determine the node-port 
   service to call the dispatch the request.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+######################################################################################
+### Access Api from outside of the cluster
+######################################################################################
+
+https://minikube.sigs.k8s.io/docs/handbook/accessing/#using-minikube-tunnel
+
+- The following will create a deployment and expose the service running within
+the container of the Kubernetes pod so it can be accessed from outside the 
+cluster.
+
+- Run in command console:
+-----------------------------------
+$ minikube start
+$ minikube dashboard
+
+- Run the following in another command console:
+-----------------------------------
+$ minikube tunnel
+
+- Run the following in another command console:
+$ kubectl create deployment kubia-deploy --image blgreco72dev/kubia
+
+- Run the following to view details about the deployment and created resources:
+-----------------------------------
+$ kubectl get deployments
+$ kubectl describe deployments kubia-deploy
+$ kubectl get pods
+$ kubectl describe pods kubia
+
+- Run the following to expose the pod created for the container within the deployment:
+-----------------------------------
+$ kubectl expose deployment kubia-deploy --type=LoadBalancer --port=8080
+
+- The above is telling Kubernetes to expose all pods created from the named deployment.
+
+$ kubectl get service
+
+
+NAME           TYPE           CLUSTER-IP     EXTERNAL-IP    PORT(S)          AGE
+kubernetes     ClusterIP      10.96.0.1      <none>         443/TCP          13m
+kubia-deploy   LoadBalancer   10.98.69.127   10.98.69.127   8080:32214/TCP   12m
+
+- Note the IP that has been assigned to External-IP for the service.
+
+$ curl 10.98.69.127:8080
+
+
+######################################################################################
+### Expecting the Node
+######################################################################################
+
+- The minikube node has an ip address of:  172.17.0.3 as can be found
+  by running kubectl describe node minikube.  This is the IP address of
+  VM created running the single Kubernetes node.
+
+- The following will shh into the node and expect its state:
+
+$ minikube ssh
+
+- Once in the node, run the following to install curl command line:
+sudo apt-get update
+sudo apt-get install curl
+
+- Run the following to see the IP address of the VM:
+$ ip addr show
+
+eth0@if55: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue state UP group default 
+    link/ether 02:42:ac:11:00:03 brd ff:ff:ff:ff:ff:ff link-netnsid 0
+    inet 172.17.0.3/16 brd 172.17.255.255 scope global eth0
+
+- The IP address will match what was reported by kubectl describe minikube
+
+- Exit the ssh session.
+$ exit
+
+- Next, run the following to get the details of the pod running within the cluster:
+
+$ kubectl describe pod kubia
+
+Namespace:    default
+Priority:     0
+Node:         minikube/172.17.0.3
+Start Time:   Wed, 02 Sep 2020 11:57:59 -0400
+Labels:       app=kubia-deploy
+              pod-template-hash=5d9f894958
+Annotations:  <none>
+Status:       Running
+IP:           172.18.0.3
+
+The IP address of the pod is 172.18.0.3
+
+- ssh into the node again:
+$ minikube ssh 
+
+- Next, execute the following command to against the IP address of
+  the pod to call the service (api) running within the pod from a 
+  bash session within the node containing the pod:
+
+curl 172.18.0.3:8080
+
+- So the above is accessing the Pod from the bash command line on the node
+  that was ssh into.  The above IP address 172.18.0.3 is specific to the node
+  and can only be accessed from the node that was just ssh into.
+
+- The following are the details for the service created to expose the container
+  running from within the Pod:
+
+NAME           TYPE           CLUSTER-IP     EXTERNAL-IP    PORT(S)          AGE
+kubia-deploy   LoadBalancer   10.98.69.127   10.98.69.127   8080:32214/TCP   12m
+
+
+- The Cluster-IP can be used to access the Pod from another node within the cluster.
+- Minikube is only a one node cluster, but still logged into the node, this IP address
+  can also be used to call the service running within the Pods container:
+
+curl 10.98.69.127:8080
+  
+- So a microservice based solution should be designed to carefully to only expose
+  the services that should be allowed to be invoked from outside the cluster while
+  other more internal services should only communicate on the internal custer-ip.
+
+** Later a multi node cluster will be created using Google Cloud Services and more
+   details will be provided.
+
+
+minikube service kubia-deploy
+
+|-----------|--------------|-------------|-------------------------|
+| NAMESPACE |     NAME     | TARGET PORT |           URL           |
+|-----------|--------------|-------------|-------------------------|
+| default   | kubia-deploy |        8080 | http://172.17.0.3:32214 |
+|-----------|--------------|-------------|-------------------------|
+
+- 10.98.69.127:8080 (LoadBalancer)  -->   http://172.17.0.3:32214 (node) -->  172.18.0.3:8080(pod)
+
+-  This is the ip and port exposed        - This is the ip and port exposed     - This is the ip and port
+   by the load balancer.                    to allows the container service       of the internal pod.
+                                            for access outside of the cluster
+
+- These layers of indirection are needed since after exposing the pod to be called from outside the
+  node, the pod can be moved around or replicated to several different nodes.  So clients should 
+  never point to a service on a given node since it might be moved and therefore the ip and port
+  would change.  The ip and port of the LoadBalancer is static and load balances requests across
+  the nodes running the pod.
+
+$ minikube stop                             
+$ minikube delete
+
+- The following outlines what is happening when the above deployment was created 
+  using kubeclt from the command line:
+
+1.  The kubectl commands sends request to the Kubernetes HTTP REST Api.
+2.  A new Deployment is created within the cluster.
+3.  The Deployment creates a Replica Set identifying how the pods should be created to satisfy deployment.
+4.  The Replica Set coordinates the creation of a new Pod to run container by sending request to the Scheduler.
+5.  The Scheduler determines the node on which the container should be created and sends request to the Kubelet 
+    running on the node.
+6.  The Worker node uses Docker to pull the image from a repository and creates a Docker Container.
+7.  The Docker Container is associated with the Pod in which is executed.
+8.  Next, a service is created to expose the api running within the pod's docker container.  
+
+
+- However, this IP address is internal to the cluster can cannot be accessed from outside.
+- To expose the service running within a pod's container, a service must be created.
+- There are different types of services:  LoadBalancer and ClusterIP.  A ClusterIP exposes
+  the pod's container service(api) within the custer and a LoadBalancer will expose the
+  pod's container service(api) to outside the cluster.
+- LoadBalancer services creates an external load balancer with an exposed IP address to 
+  which external clients use to call a pod's container service(api).
+
+
+######################################################################################
+### Additional Kubernetes Cluster/Controllers/Services/Pods Notes
+######################################################################################
+
+- The role of the ReplicationController is to replicate pods and to make sure they
+  remain running.  ReplicationController resource are not created very often are 
+  a ReplicaSet (a type of ReplicationController) is commonly used.  When the deployment
+  above was created, it created an associated ReplicaSet.
+
+- If a pod crashes or the node is stopped, this is detected by the ReplicaSet which
+  schedules another pod with the Scheduler to be created.  The Schedule determines 
+  the best worker node for the pod.  The Kubelet process running on the node is called
+  by the scheduler.  The Kubelet process then pulls the image and then creates the container
+  and associated pod. 
+
+- When the prod is relocated to a new node, the newly created pod will have a new IP address.
+- The IP address of the LoadBalancer Service is static (for the life of the service).  The 
+LoadBalancer Service keeps track of the nodes the exposed pods are running and forwards any
+requests to one of the nodes where the pod is running.
+
+** Services represent a static location for a group of one or more pods that all provide the same service.
+
+- The following will show the created ReplicaSet resources:
+$ kubectl get replicasets
+
+NAME                      DESIRED   CURRENT   READY   AGE
+kubia-deploy-5d9f894958   1         1         1       4h11m
+
+- Next, the ReplicaSet will be sent a request to have the number of running pods
+  scaled-up from one to 3.  Since these examples thus far are using minikube, there
+  is only one node so the following command can be executed:
+  
+$ kubectl scale --replicas=3 rs/kubia-deploy-5d9f894958 
+  
+  In the dashboard, you will see the number of pending nodes increase and two additions 
+  pods listed, but since this is a single node cluster, the pods will not be replicated.  
+  This is just a limitation of using minikube.  This will be revisited after setting up 
+  Kubernetes as a cloud service.
+
+
+- The following will list all the pods and the nodes to which the are running.  Knowing
+  which node a pod is running on is usually no of interest.
+
+ $ kubectl get pods -o wide
+
+NAME                            READY   STATUS    RESTARTS   AGE     IP           NODE       NOMINATED NODE   READINESS GATES
+kubia-deploy-5d9f894958-5hhrn   1/1     Running   0          4h29m   172.18.0.3   minikube   <none>           <none>
+
+
+And the following can be used to get details for a specific Pod:
+
+$ kubectl describe pod kubia-deploy-5d9f894958-5hhrn
+
+
+######################################################################################
+### Labels
+######################################################################################
+
+- Labels are used to tag resources (such as pods) so they can be categorized 
+  and referenced as a set.
+
+- Labels allows a group of related pods to be operated on as a whole Instead
+  of individually.
+
+- They are key/value parts associated with a resource.  The other resources,
+  can reference all tagged resources using a label selector.
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: kubia-pod-labels
+  labels:
+    app: receipts
+    env: prod
+spec:
+  containers:
+  - image: blgreco72dev/kubia
+    name: kubia
+    ports:
+    - containerPort: 8080
+      protocol: TCP
+
+- The following can be used to view a pod's labels:
+
+kubectl get pods --show-labels
+
+- Labels can be added and updated on pods:
+
+$ kubectl label pod kubia-pod-labels env=test --overwrite
+$ kubectl label pod kubia-pod-labels version=2.0.4 
+$ kubectl label pod kubia-pod env=test
+
+- Resources can be filtered based on their assigned labels:
+
+$ kubectl get pods -l env=test --show-labels
+
+- Multiple selectors can be specified within a filter by separating each by a comma.
+
+Node Selection Using Levels
+--------------------------------
+
+- This should only be used when needed.  Kubernetes should be in charge of determining
+  the node on which a pod should be executed.
+
+- While an exact node cannot be specified for running a pod, the characteristics of the
+  node (specified by labels) can be used to select a pod.
+
+- The following is used to add a label to a node:
+
+$ kubectl get nodes
+
+NAME       STATUS   ROLES    AGE   VERSION
+minikube   Ready    master   24h   v1.18.3
+
+$ kubectl label node minikube uat=true
+
+- Labels can be used to filter matching nodes:
+
+$ kubectl get nodes -l uat=true
+$ kubectl get nodes -l prod=true
+
+- Within a Pod's resource definition file, the characteristics of the node to deploy the
+  pod can be specified within the "spec" section with the property named "nodeSelector".
+
+######################################################################################
+### Resource Annotations
+######################################################################################
+
+- Annotations are key/value pairs similar to labels but are not used to select resources.
+- There are are a from of metadata.
+
+- Within a resource definition file, Annotations are specified using the "annotations" property
+  defined within the "metadata" section.
+
+- Annotations can also be added after the resource is created:
+
+$ kubectl annotate pod kubia-pod somecompany.com/build="144"
+
+- A pod's annotations can be seen as follows:
+
+$ kubectl describe pod kubia-pod
+
+
+######################################################################################
+### Namespaces
+######################################################################################
+
+- Namespaces are used to associate a name with a group of resources.
+
+- The following will add another label to the kubia-prod-labels pod so both pods will have
+  a set of labels with the same set of key/value pairs.
+
+$ kubectl label pod kubia-pod app=receipt
+
+- The following will be used to define a namespace to group all "test" environment "receipt" pods 
+  from which a given solution is comprised.
+
+- Use the next command to list all defined namespace within a cluster:
+
+$ kubectl get namespaces
+
+- If not otherwise specified, resources are associated with the default namespace.  Also, only
+  resources with the default namespace are returned when listing resources if not specified.
+
+- Namespaces can be created using yaml files or from the command line.
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: receipt-solution
+
+
+$ kubectl create -f pod-namespace.yml
+
+$ kubectl create namespace payment-solution
+
+
+- Namespaces can be specified within a resource definition file by adding a "namespace" property
+  to the "metadata" section.  Or the --namespace argument can be specified when calling kubectl
+  create when applying a yaml file.
+
+- Name spaces do not provide any type of isolation.  For example, pods assigned to different 
+  namespaces can still communicate within the cluster.
+
+- Labels and Namespaces can be used to apply an operation to multiple resources at the same time.
+- The following will delete all nodes defining a label with a specific value:
+
+$ kubectl delete pods -l app=receipt
+
+- Also, all Pods contained within a namespace can be deleted by deleting the namespace.  This will
+  also delete the namespace.
+
+$ kubectl delete namespace receipt-solution
+
+- If you want to keep the namespace and just want to delete all Pods within the namespace, 
+  the following command can be used:
+
+$ kubectl delete pods --all
+
+- The above command will delete all resources contained within the current namespace.
+
+The current namespace to which all commands will apply can be set as follows:
+
+$ kubectl config set-context --current --namespace=receipt-solution
+
+- The following command can be used to view the current context:
+
+$ kubectl config current-context
+
+
+######################################################################################
+### DaemonSet
+######################################################################################
+
+- Allows running a specific Pod on all Nodes belonging to the cluster.
+
+- If a new Node is added to the Cluster, the DaemonSet will automatically create a new Pod 
+  instance on that node.
+
+- Also, a DaemonSet can be defined to run a Pod on a set of Nodes meeting a specific criteria.
+
+- The following is a definition for a DaemonSet:
+
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: daemon-test
+spec:
+  selector:
+    matchLabels:
+      app: daemon-test
+  template:
+    metadata:
+      labels:
+        app: daemon-test
+    spec:
+      nodeSelector:
+        disk: ssd
+      containers:
+      - name: main
+        image: blgreco72dev/kubia
+
+$ kubectl create -f daemon-set.yaml
+
+- At this point, zero Pods will have been created.  Currently there are no nodes
+  labeled with drive: ssd
+
+$ kubectl get pods
+
+No resources found in default namespace.
+
+- Next label some nodes with the needed label:
+
+$ kubectl label node minikube disk=ssd
+
+$ kubectl get pods
+NAME                READY   STATUS    RESTARTS   AGE
+daemon-test-jlszm   1/1     Running   0          31s
+
+
+######################################################################################
+### Jobs
+######################################################################################
+- The other controller types create a number of Pods and makes sure they
+  are always running to match the number of specified replica.
+
+- Jobs create a Pod for executing a container process.  After the process completes,
+  the Pod is removed.
+
+- If a node goes down when a Job is running, a Pod will be created on another node to continue
+  until the job successfully completes.
+
+- A Pod for a Job does not run indefinitely so the restartPolicy must be specified as OnFailure or Never.
+
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: batch-job
+spec:
+  template:
+    metadata:
+      labels:
+        app: batch-job
+    spec:
+      restartPolicy: OnFailure
+      containers:
+      - name: main
+        image: luksa/batch-job
+
+
+- After the job completes, the Pod will remain.  This allows you to check the logs if needed.
+
+
+$ kubectl get pods
+
+NAME                READY   STATUS    RESTARTS   AGE
+batch-job-tkcl6     1/1     Running   0          2m55s
+
+NAME                READY   STATUS      RESTARTS   AGE
+batch-job-tkcl6     0/1     Completed   0          2m35s
+
+
+----------------------------------------
+CronJob
+----------------------------------------
+- These are similar to Jobs but they can be scheduled to run on an interval.
+
 
 
 ######################################################################################

@@ -471,3 +471,73 @@ deployment describe the number of Pods that should remain running and how it sho
 
 -------------------------------------------------------------------------------------------
 
+- Containers within Pods can communicate with Containers located in another pod by using the IP address 
+  of the Pod assigned by Kubernetes.
+
+- The below Docker file creates an Ubuntu based image and install ping and curl that can be used 
+  to test communication between pods:
+
+cat Dockerfile-tools
+
+FROM ubuntu
+RUN apt-get update
+RUN apt-get install curl -y
+RUN apt-get install iputils-ping -y
+CMD [ "sleep", "15m" ]
+
+- Build and push image to your repository:
+
+docker build . -t blgreco72dev/ubuntu-tools -f Dockerfile-tools
+docker push blgreco72dev/ubuntu-tools  
+
+- Run the following commands to create two Pods that will run a container created from the image:
+
+kubectl run pod1 --image blgreco72dev/ubuntu-tools
+kubectl run pod2 --image blgreco72dev/ubuntu-tools
+
+kubectl get pods -o wide
+
+NAME   READY   STATUS    RESTARTS   AGE   IP            NODE      NOMINATED NODE   READINESS GATES
+pod1   1/1     Running   0          82s   10.244.1.18   w-node1   <none>           <none>
+pod2   1/1     Running   0          7s    10.244.3.9    w-node3   <none>           <none>
+
+- Note the IP address of pod2 above and execute a shell running within the container running within pod1:
+
+kubectl exec -it pod1 -- sh
+
+- Next execute the following at the sh command prompt running within the container of pod1:
+
+ ping 10.244.3.9
+
+PING 10.244.3.9 (10.244.3.9) 56(84) bytes of data.
+From 10.244.1.1 icmp_seq=1 Time to live exceeded
+From 10.244.1.1 icmp_seq=2 Time to live exceeded
+From 10.244.1.1 icmp_seq=3 Time to live exceeded
+From 10.244.1.1 icmp_seq=4 Time to live exceeded
+
+- The above shows how containers, running within Pods, can communicate with another Pod's container using
+  the IP address assigned to the Pod by Kubernetes.
+
+- However, this is not a good practice since the IP addresses are not static.  When an unhealthy pod is 
+  detected or if a node is taking offline, it will create another Pod if defined by a ReplicaSet.  The 
+  newly crated pod will be assigned a new IP address.
+
+- Side Note:
+
+kubectl get pods -o wide
+
+NAME   READY   STATUS    RESTARTS   AGE   IP            NODE      NOMINATED NODE   READINESS GATES
+pod1   1/1     Running   1          16m   10.244.1.18   w-node1   <none>           <none>
+pod2   1/1     Running   1          15m   10.244.3.9    w-node3   <none>           <none>
+
+- After 15 minutes, the kubelet process running on the worker nodes detect that the container has
+  stopped execution after 15 minutes and created a new container. 
+
+kubectl delete pod pod1
+kubectl delete pod pod2
+
+------------------------------------------------------------------------------------------------------------
+
+- The above issue is solved by defining Kubernetes Service Resources.
+
+- 
