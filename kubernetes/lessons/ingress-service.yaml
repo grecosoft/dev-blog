@@ -1,0 +1,15 @@
+apiVersion: projectcalico.org/v3
+kind: GlobalNetworkPolicy
+metadata:
+  name: allow-nodeport
+spec:
+  preDNAT: true
+  applyOnForward: true
+  order: 10
+  ingress:
+    - action: Allow
+      protocol: TCP
+      destination:
+        selector: app=kubia
+        ports: [31852]
+

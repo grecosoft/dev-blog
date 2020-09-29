@@ -1538,7 +1538,436 @@ kubia-srv    ClusterIP   10.111.189.83   <none>        80/TCP    114s   app=kubi
 
 
 ######################################################################################
-### Exposing Services externally using Ingress Resource
+### LoadBalancer Services
+######################################################################################
+
+TODO:
+
+######################################################################################
+### Ingress Services
+######################################################################################
+
+TODO:
+
+######################################################################################
+### Egress Services
+######################################################################################
+
+TODO:
+
+######################################################################################
+### DNS/Event Variables for Services
+######################################################################################
+
+TODO:
+
+######################################################################################
+### Deployments
+######################################################################################
+
+TODO:
+
+######################################################################################
+### Additional Kubernetes Cluster/Controllers/Services/Pods Notes
+######################################################################################
+
+- The role of the ReplicationController is to replicate pods and to make sure they
+  remain running.  ReplicationController resource are not created very often are 
+  a ReplicaSet (a type of ReplicationController) is commonly used.  When the deployment
+  above was created, it created an associated ReplicaSet.
+
+- If a pod crashes or the node is stopped, this is detected by the ReplicaSet which
+  schedules another pod with the Scheduler to be created.  The Schedule determines 
+  the best worker node for the pod.  The Kubelet process running on the node is called
+  by the scheduler.  The Kubelet process then pulls the image and then creates the container
+  and associated pod. 
+
+- When the prod is relocated to a new node, the newly created pod will have a new IP address.
+- The IP address of the LoadBalancer Service is static (for the life of the service).  The 
+  LoadBalancer Service keeps track of the nodes where the exposed pods are running and forwards
+  any requests to one of the nodes where the pod is running.
+
+* Services represent a static location for a group of one or more pods that all provide 
+  the same service.
+
+
+######################################################################################
+### Labels
+######################################################################################
+
+- Labels are used to tag resources (such as pods) so they can be categorized 
+  and referenced as a set.
+
+- Labels allows a group of related pods to be operated on as a whole Instead
+  of individually.
+
+- They are key/value parts associated with a resource.  The other resources,
+  can reference all tagged resources using a label selector.
+
+touch lessons/labeled-pod.yaml
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: kubia-pod-labels
+  labels:
+    app: receipts
+    env: prod
+spec:
+  containers:
+  - image: blgreco72dev/kubia
+    name: kubia
+    ports:
+    - containerPort: 8080
+      protocol: TCP
+
+kubectl create -f lessons/labeled-pod.yaml
+
+
+- The following can be used to view a pod's labels:
+
+kubectl get pods --show-labels
+
+NAME               READY   STATUS    RESTARTS   AGE   LABELS
+kubia-pod-labels   1/1     Running   0          66s   app=receipts,env=prod
+
+- Labels can be added and updated on pods:
+
+$ kubectl label pod kubia-pod-labels env=test --overwrite
+
+NAME               READY   STATUS    RESTARTS   AGE    LABELS
+kubia-pod-labels   1/1     Running   0          110s   app=receipts,env=test
+
+$ kubectl label pod kubia-pod-labels version=2.0.4 
+
+NAME               READY   STATUS    RESTARTS   AGE     LABELS
+kubia-pod-labels   1/1     Running   0          2m38s   app=receipts,env=test,version=2.0.4
+
+- Resources can be filtered based on their assigned labels:
+
+$ kubectl get pods -l env=test --show-labels
+
+- Multiple selectors can be specified within a filter by separating each by a comma.
+
+Node Selection Using Labels
+--------------------------------
+
+- This should only be used when needed.  Kubernetes should be in charge of determining
+  the node on which a pod should be executed.
+
+- While an exact node cannot be specified for running a pod, the characteristics of the
+  node (specified by labels) can be used to select a pod.
+
+- The following will display all Node labels:
+
+$  kubectl get nodes --show-labels
+
+NAME      STATUS   ROLES    AGE     VERSION   LABELS
+m-node1   Ready    master   2d21h   v1.19.2   beta.kubernetes.io/arch=amd64,beta.kubernetes.io/os=linux,kubernetes.io/arch=amd64,kubernetes.io/hostname=m-node1,kubernetes.io/os=linux,node-role.kubernetes.io/master=
+w-node1   Ready    <none>   2d20h   v1.19.2   beta.kubernetes.io/arch=amd64,beta.kubernetes.io/os=linux,kubernetes.io/arch=amd64,kubernetes.io/hostname=w-node1,kubernetes.io/os=linux
+w-node2   Ready    <none>   2d17h   v1.19.2   beta.kubernetes.io/arch=amd64,beta.kubernetes.io/os=linux,kubernetes.io/arch=amd64,kubernetes.io/hostname=w-node2,kubernetes.io/os=linux
+w-node3   Ready    <none>   2d17h   v1.19.2   beta.kubernetes.io/arch=amd64,beta.kubernetes.io/os=linux,kubernetes.io/arch=amd64,kubernetes.io/hostname=w-node3,kubernetes.io/os=linux
+
+
+- When the Kubernetes Cluster is built, some default labels are added.
+- The following is used to add a label to a node:
+
+$ kubectl get nodes
+
+NAME       STATUS   ROLES    AGE   VERSION
+minikube   Ready    master   24h   v1.18.3
+
+$ kubectl label node minikube uat=true
+
+- Labels can be used to filter matching nodes:
+
+$ kubectl get nodes -l kubernetes.io/arch=amd64
+
+- Within a Pod's resource definition file, the characteristics of the node to deploy the
+  pod can be specified within the "spec" section with the property named "nodeSelector".
+
+
+######################################################################################
+### Resource Annotations
+######################################################################################
+
+- Annotations are key/value pairs similar to labels but are not used to select resources.
+- There are are a from of metadata.
+
+- Within a resource definition file, Annotations are specified using the "annotations" property
+  defined within the "metadata" section.
+
+- Annotations can also be added after the resource is created:
+
+$ kubectl annotate pod kubia-pod-labels somecompany.com/build="144"
+
+- A pod's annotations can be seen as follows:
+
+$ kubectl describe pod kubia-pod-labels
+
+Annotations:  cni.projectcalico.org/podIP: 192.168.138.14/32
+              cni.projectcalico.org/podIPs: 192.168.138.14/32
+              somecompany.com/build: 144
+Status:       Running
+IP:           192.168.138.14
+
+
+######################################################################################
+### Namespaces
+######################################################################################
+
+- Namespaces are used to associate a name with a group of resources.
+
+- The following will add another label to the kubia-prod-labels pod so both pods will have
+  a set of labels with the same set of key/value pairs.
+
+$ kubectl label pod kubia-pod app=receipt
+
+- The following will be used to define a namespace to group all "test" environment "receipt" pods 
+  from which a given solution is comprised.
+
+- Use the next command to list all defined namespace within a cluster:
+
+$ kubectl get namespaces
+
+- If not otherwise specified, resources are associated with the default namespace.  Also, only
+  resources with the default namespace are returned when listing resources if not specified.
+
+- Namespaces can be created using yaml files or from the command line.
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: receipt-solution
+
+
+$ kubectl create -f pod-namespace.yml
+
+$ kubectl create namespace payment-solution
+
+
+- Namespaces can be specified within a resource definition file by adding a "namespace" property
+  to the "metadata" section.  Or the --namespace argument can be specified when calling kubectl
+  create when applying a yaml file.
+
+- Name spaces do not provide any type of isolation.  For example, pods assigned to different 
+  namespaces can still communicate within the cluster.
+
+- Labels and Namespaces can be used to apply an operation to multiple resources at the same time.
+- The following will delete all nodes defining a label with a specific value:
+
+$ kubectl delete pods -l app=receipt
+
+- Also, all Pods contained within a namespace can be deleted by deleting the namespace.  This will
+  also delete the namespace.
+
+$ kubectl delete namespace receipt-solution
+
+- If you want to keep the namespace and just want to delete all Pods within the namespace, 
+  the following command can be used:
+
+$ kubectl delete pods --all
+
+- The above command will delete all resources contained within the current namespace.
+
+The current namespace to which all commands will apply can be set as follows:
+
+$ kubectl config set-context --current --namespace=receipt-solution
+
+- The following command can be used to view the current context:
+
+$ kubectl config current-context
+
+
+######################################################################################
+### DaemonSet
+######################################################################################
+
+- Allows running a specific Pod on all Nodes belonging to the cluster.
+
+- If a new Node is added to the Cluster, the DaemonSet will automatically create a new Pod 
+  instance on that node.
+
+- Also, a DaemonSet can be defined to run a Pod on a set of Nodes meeting a specific criteria.
+
+- The following is a definition for a DaemonSet:
+
+$ cat lessons/daemon-set.ymal 
+
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: daemon-test
+spec:
+  selector:
+    matchLabels:
+      app: daemon-test
+  template:
+    metadata:
+      labels:
+        app: daemon-test
+    spec:
+      nodeSelector:
+        disk: ssd
+      containers:
+      - name: main
+        image: blgreco72dev/kubia
+
+$  kubectl create -f lessons/daemon-set.ymal 
+
+- At this point, zero Pods will have been created.  Currently there are no nodes
+  labeled with drive: ssd
+
+$ kubectl get pods
+
+No resources found in default namespace.
+
+$ kubectl get nodes
+
+NAME      STATUS   ROLES    AGE     VERSION
+m-node1   Ready    master   2d22h   v1.19.2
+w-node1   Ready    <none>   2d21h   v1.19.2
+w-node2   Ready    <none>   2d18h   v1.19.2
+w-node3   Ready    <none>   2d17h   v1.19.2
+
+- Next label some nodes with the needed label:
+
+$ kubectl label node w-node2 disk=ssd
+$ kubectl label node w-node3 disk=ssd
+
+$ kubectl get pods -o wide
+
+NAME                READY   STATUS    RESTARTS   AGE   IP               NODE      NOMINATED NODE   READINESS GATES
+daemon-test-lbncm   1/1     Running   0          11s   192.168.138.15   w-node3   <none>           <none>
+daemon-test-rclsc   1/1     Running   0          26s   192.168.144.79   w-node2   <none>           <none>
+
+$ kubectl get daemonset
+
+NAME          DESIRED   CURRENT   READY   UP-TO-DATE   AVAILABLE   NODE SELECTOR   AGE
+daemon-test   2         2         2       2            2           disk=ssd        4m37s
+
+- The following then can be used to delete all daemons:
+
+$ kubectl delete daemonset daemon-test
+
+$ kubectl get pods
+
+NAME                READY   STATUS        RESTARTS   AGE
+daemon-test-lbncm   1/1     Terminating   0          2m51s
+daemon-test-rclsc   1/1     Terminating   0          3m6s
+
+
+######################################################################################
+### Jobs
+######################################################################################
+- The other controller types create a number of Pods and makes sure they
+  are always running to match the number of specified replica.
+
+- Jobs create a Pod for executing a container process.  After the process completes,
+  the Pod is removed.
+
+- If a node goes down when a Job is running, a Pod will be created on another node to continue
+  until the job successfully completes.
+
+- A Pod for a Job does not run indefinitely so the restartPolicy must be specified as OnFailure or Never.
+
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: batch-job
+spec:
+  template:
+    metadata:
+      labels:
+        app: batch-job
+    spec:
+      restartPolicy: OnFailure
+      containers:
+      - name: main
+        image: luksa/batch-job
+
+
+- After the job completes, the Pod will remain.  This allows you to check the logs if needed.
+
+
+$ kubectl get pods
+
+NAME                READY   STATUS    RESTARTS   AGE
+batch-job-tkcl6     1/1     Running   0          2m55s
+
+NAME                READY   STATUS      RESTARTS   AGE
+batch-job-tkcl6     0/1     Completed   0          2m35s
+
+
+----------------------------------------
+CronJob
+----------------------------------------
+- These are similar to Jobs but they can be scheduled to run on an interval.
+
+
+
+######################################################################################
+### Heath Checks
+######################################################################################
+
+TODO:
+
+######################################################################################
+### Ready Checks
+######################################################################################
+
+- As soon as a pod is crated, Kubernetes assumes it is ready to receive connections.
+- However, this might not alway be the case.
+- A pod can signal when it is ready.
+- This is mostly needed during container service-api startup.
+
+TODO:
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+######################################################################################
+!!!!!!!!!!!  Exposing Services externally using Ingress Resource
 ######################################################################################
 
 - The issue with creating a LoadBalancer as discussed in the last section is that a LoadBalancer
@@ -1546,8 +1975,8 @@ kubia-srv    ClusterIP   10.111.189.83   <none>        80/TCP    114s   app=kubi
   defined static IP address and Port.  
 
 - Ingress is the next logical step in that it exposes only a single static IP address and Port
-  that can be used to route requests to multiple internal defines service-apis running within automatically
-  Pod.
+  that can be used to route requests to multiple internal defines service-apis running within 
+  Pods.
 
 - For this to function, an Ingress controller needs to be running within the cluster.  This is already
   the case for most cloud hosted Kubernetes services.  But if using minikube, it must be enabled.
@@ -1560,6 +1989,8 @@ $ minikube addons enable Ingress
 
 - First a NodePort service needs to be created using a label to select the running Pods in the
   ReplicaSet.
+
+cat lessons/ingress-node-port-service.yaml
 
 apiVersion: v1
 kind: Service
@@ -1574,21 +2005,26 @@ spec:
   selector:
     app: kubia
 
-$ kubectl create -f ingress-node-port-service.yaml
+$ kubectl create -f lessons/ingress-node-port-service.yaml 
 
-apiVersion: networking.k8s.io/v1beta1
+$ cat lessons/ingress-service.yaml 
+
+apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: kubia
+  name: ingress-kubia
 spec:
   rules:
-  - host: kubia.example.com
+  - host: "kubia.test.com"
     http:
       paths:
-      - path: /
+      - pathType: Prefix
+        path: "/test"
         backend:
-          serviceName: kubia-nodeport
-          servicePort: 80
+          service:
+            name: kubia-nodeport
+            port:
+              number: 80
 
 $ kubectl create -f ingress-service.yaml 
 
@@ -1613,29 +2049,6 @@ $ curl http://kubia.example.com
   can be defined, one for each node-port service (which is defined on a set of pods
   having matching labels) then Ingress uses the path to determine the node-port 
   service to call the dispatch the request.
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 - Next, a service will be created to expose the service-api running within pods associated
   with the kubia-set.
@@ -2021,340 +2434,8 @@ $ minikube delete
   which external clients use to call a pod's container service(api).
 
 
-######################################################################################
-### Additional Kubernetes Cluster/Controllers/Services/Pods Notes
-######################################################################################
 
-- The role of the ReplicationController is to replicate pods and to make sure they
-  remain running.  ReplicationController resource are not created very often are 
-  a ReplicaSet (a type of ReplicationController) is commonly used.  When the deployment
-  above was created, it created an associated ReplicaSet.
 
-- If a pod crashes or the node is stopped, this is detected by the ReplicaSet which
-  schedules another pod with the Scheduler to be created.  The Schedule determines 
-  the best worker node for the pod.  The Kubelet process running on the node is called
-  by the scheduler.  The Kubelet process then pulls the image and then creates the container
-  and associated pod. 
-
-- When the prod is relocated to a new node, the newly created pod will have a new IP address.
-- The IP address of the LoadBalancer Service is static (for the life of the service).  The 
-LoadBalancer Service keeps track of the nodes the exposed pods are running and forwards any
-requests to one of the nodes where the pod is running.
-
-** Services represent a static location for a group of one or more pods that all provide the same service.
-
-- The following will show the created ReplicaSet resources:
-$ kubectl get replicasets
-
-NAME                      DESIRED   CURRENT   READY   AGE
-kubia-deploy-5d9f894958   1         1         1       4h11m
-
-- Next, the ReplicaSet will be sent a request to have the number of running pods
-  scaled-up from one to 3.  Since these examples thus far are using minikube, there
-  is only one node so the following command can be executed:
-  
-$ kubectl scale --replicas=3 rs/kubia-deploy-5d9f894958 
-  
-  In the dashboard, you will see the number of pending nodes increase and two additions 
-  pods listed, but since this is a single node cluster, the pods will not be replicated.  
-  This is just a limitation of using minikube.  This will be revisited after setting up 
-  Kubernetes as a cloud service.
-
-
-- The following will list all the pods and the nodes to which the are running.  Knowing
-  which node a pod is running on is usually no of interest.
-
- $ kubectl get pods -o wide
-
-NAME                            READY   STATUS    RESTARTS   AGE     IP           NODE       NOMINATED NODE   READINESS GATES
-kubia-deploy-5d9f894958-5hhrn   1/1     Running   0          4h29m   172.18.0.3   minikube   <none>           <none>
-
-
-And the following can be used to get details for a specific Pod:
-
-$ kubectl describe pod kubia-deploy-5d9f894958-5hhrn
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-######################################################################################
-### Labels
-######################################################################################
-
-- Labels are used to tag resources (such as pods) so they can be categorized 
-  and referenced as a set.
-
-- Labels allows a group of related pods to be operated on as a whole Instead
-  of individually.
-
-- They are key/value parts associated with a resource.  The other resources,
-  can reference all tagged resources using a label selector.
-
-apiVersion: v1
-kind: Pod
-metadata:
-  name: kubia-pod-labels
-  labels:
-    app: receipts
-    env: prod
-spec:
-  containers:
-  - image: blgreco72dev/kubia
-    name: kubia
-    ports:
-    - containerPort: 8080
-      protocol: TCP
-
-- The following can be used to view a pod's labels:
-
-kubectl get pods --show-labels
-
-- Labels can be added and updated on pods:
-
-$ kubectl label pod kubia-pod-labels env=test --overwrite
-$ kubectl label pod kubia-pod-labels version=2.0.4 
-$ kubectl label pod kubia-pod env=test
-
-- Resources can be filtered based on their assigned labels:
-
-$ kubectl get pods -l env=test --show-labels
-
-- Multiple selectors can be specified within a filter by separating each by a comma.
-
-Node Selection Using Levels
---------------------------------
-
-- This should only be used when needed.  Kubernetes should be in charge of determining
-  the node on which a pod should be executed.
-
-- While an exact node cannot be specified for running a pod, the characteristics of the
-  node (specified by labels) can be used to select a pod.
-
-- The following is used to add a label to a node:
-
-$ kubectl get nodes
-
-NAME       STATUS   ROLES    AGE   VERSION
-minikube   Ready    master   24h   v1.18.3
-
-$ kubectl label node minikube uat=true
-
-- Labels can be used to filter matching nodes:
-
-$ kubectl get nodes -l uat=true
-$ kubectl get nodes -l prod=true
-
-- Within a Pod's resource definition file, the characteristics of the node to deploy the
-  pod can be specified within the "spec" section with the property named "nodeSelector".
-
-######################################################################################
-### Resource Annotations
-######################################################################################
-
-- Annotations are key/value pairs similar to labels but are not used to select resources.
-- There are are a from of metadata.
-
-- Within a resource definition file, Annotations are specified using the "annotations" property
-  defined within the "metadata" section.
-
-- Annotations can also be added after the resource is created:
-
-$ kubectl annotate pod kubia-pod somecompany.com/build="144"
-
-- A pod's annotations can be seen as follows:
-
-$ kubectl describe pod kubia-pod
-
-
-######################################################################################
-### Namespaces
-######################################################################################
-
-- Namespaces are used to associate a name with a group of resources.
-
-- The following will add another label to the kubia-prod-labels pod so both pods will have
-  a set of labels with the same set of key/value pairs.
-
-$ kubectl label pod kubia-pod app=receipt
-
-- The following will be used to define a namespace to group all "test" environment "receipt" pods 
-  from which a given solution is comprised.
-
-- Use the next command to list all defined namespace within a cluster:
-
-$ kubectl get namespaces
-
-- If not otherwise specified, resources are associated with the default namespace.  Also, only
-  resources with the default namespace are returned when listing resources if not specified.
-
-- Namespaces can be created using yaml files or from the command line.
-
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: receipt-solution
-
-
-$ kubectl create -f pod-namespace.yml
-
-$ kubectl create namespace payment-solution
-
-
-- Namespaces can be specified within a resource definition file by adding a "namespace" property
-  to the "metadata" section.  Or the --namespace argument can be specified when calling kubectl
-  create when applying a yaml file.
-
-- Name spaces do not provide any type of isolation.  For example, pods assigned to different 
-  namespaces can still communicate within the cluster.
-
-- Labels and Namespaces can be used to apply an operation to multiple resources at the same time.
-- The following will delete all nodes defining a label with a specific value:
-
-$ kubectl delete pods -l app=receipt
-
-- Also, all Pods contained within a namespace can be deleted by deleting the namespace.  This will
-  also delete the namespace.
-
-$ kubectl delete namespace receipt-solution
-
-- If you want to keep the namespace and just want to delete all Pods within the namespace, 
-  the following command can be used:
-
-$ kubectl delete pods --all
-
-- The above command will delete all resources contained within the current namespace.
-
-The current namespace to which all commands will apply can be set as follows:
-
-$ kubectl config set-context --current --namespace=receipt-solution
-
-- The following command can be used to view the current context:
-
-$ kubectl config current-context
-
-
-######################################################################################
-### DaemonSet
-######################################################################################
-
-- Allows running a specific Pod on all Nodes belonging to the cluster.
-
-- If a new Node is added to the Cluster, the DaemonSet will automatically create a new Pod 
-  instance on that node.
-
-- Also, a DaemonSet can be defined to run a Pod on a set of Nodes meeting a specific criteria.
-
-- The following is a definition for a DaemonSet:
-
-apiVersion: apps/v1
-kind: DaemonSet
-metadata:
-  name: daemon-test
-spec:
-  selector:
-    matchLabels:
-      app: daemon-test
-  template:
-    metadata:
-      labels:
-        app: daemon-test
-    spec:
-      nodeSelector:
-        disk: ssd
-      containers:
-      - name: main
-        image: blgreco72dev/kubia
-
-$ kubectl create -f daemon-set.yaml
-
-- At this point, zero Pods will have been created.  Currently there are no nodes
-  labeled with drive: ssd
-
-$ kubectl get pods
-
-No resources found in default namespace.
-
-- Next label some nodes with the needed label:
-
-$ kubectl label node minikube disk=ssd
-
-$ kubectl get pods
-NAME                READY   STATUS    RESTARTS   AGE
-daemon-test-jlszm   1/1     Running   0          31s
-
-
-######################################################################################
-### Jobs
-######################################################################################
-- The other controller types create a number of Pods and makes sure they
-  are always running to match the number of specified replica.
-
-- Jobs create a Pod for executing a container process.  After the process completes,
-  the Pod is removed.
-
-- If a node goes down when a Job is running, a Pod will be created on another node to continue
-  until the job successfully completes.
-
-- A Pod for a Job does not run indefinitely so the restartPolicy must be specified as OnFailure or Never.
-
-apiVersion: batch/v1
-kind: Job
-metadata:
-  name: batch-job
-spec:
-  template:
-    metadata:
-      labels:
-        app: batch-job
-    spec:
-      restartPolicy: OnFailure
-      containers:
-      - name: main
-        image: luksa/batch-job
-
-
-- After the job completes, the Pod will remain.  This allows you to check the logs if needed.
-
-
-$ kubectl get pods
-
-NAME                READY   STATUS    RESTARTS   AGE
-batch-job-tkcl6     1/1     Running   0          2m55s
-
-NAME                READY   STATUS      RESTARTS   AGE
-batch-job-tkcl6     0/1     Completed   0          2m35s
-
-
-----------------------------------------
-CronJob
-----------------------------------------
-- These are similar to Jobs but they can be scheduled to run on an interval.
-
-
-######################################################################################
-### Signaling when a pod is read to accept Connections
-######################################################################################
-- As soon as a pod is crated, Kubernetes assumes it is ready to receive connections.
-- However, this might not alway be the case.
-- A pod can signal when it is ready.
-- This is mostly needed during container service-api startup.
-
-  
 
 
 
