@@ -22,7 +22,6 @@ Multiple Node Cluster running on 4 ubuntu server VMs
 Steps for creating:  creating-cluster.txt
 
 
-
 ######################################################################################
 ### Basic kubectl Commands
 ######################################################################################
@@ -31,33 +30,38 @@ Steps for creating:  creating-cluster.txt
 
 kubectl cluster-info   
 
+Kubernetes master is running at https://192.168.56.4:6443
+KubeDNS is running at https://192.168.56.4:6443/api/v1/namespaces/kube-system/services/kube-dns:dns/proxy
 
-[minikube-specific]
-
-- If using Minikube, you can ssh into the node as follows:
-    - minikube ssh
-
-[minikube-specific]
-
-
-- Each node in the cluster runs Docker, Kubelet, and the kube-proxy
-- The kubectl command line sends HTTP REST requests to the Kubernetes API server running on master node.
-
-- If you ssh into one of the nodes you can see these running processes:
-
-    ps uax
-
-- Each node runs Docker, Kubelet, and kube-proxy.
-
+---------------------------------------------------------------------------------------
 
 - To view all the nodes belonging to the cluster:
 
-kubectl get nodes
+$ kubectl get nodes
 
-- For more details of each node, the following can be executed:
+NAME      STATUS   ROLES    AGE     VERSION
+m-node1   Ready    master   4d23h   v1.19.2
+w-node1   Ready    <none>   4d22h   v1.19.2
+w-node2   Ready    <none>   4d19h   v1.19.2
+w-node3   Ready    <none>   4d19h   v1.19.2
 
-kubectl get nodes -o wide
+- If your created your own Kubernetes cluster, the following command will display
+  additional details about each Node that is part of the cluster.  The additional
+  information includes the IP address of each Node.  
 
+
+$ kubectl get nodes -o wide
+
+NAME      STATUS   ROLES    AGE     VERSION   INTERNAL-IP    EXTERNAL-IP   OS-IMAGE             KERNEL-VERSION     CONTAINER-RUNTIME
+m-node1   Ready    master   4d23h   v1.19.2   192.168.56.4   <none>        Ubuntu 20.04.1 LTS   5.4.0-48-generic   docker://19.3.11
+w-node1   Ready    <none>   4d22h   v1.19.2   192.168.56.5   <none>        Ubuntu 20.04.1 LTS   5.4.0-48-generic   docker://19.3.11
+w-node2   Ready    <none>   4d19h   v1.19.2   192.168.56.6   <none>        Ubuntu 20.04.1 LTS   5.4.0-48-generic   docker://19.3.11
+w-node3   Ready    <none>   4d19h   v1.19.2   192.168.56.7   <none>        Ubuntu 20.04.1 LTS   5.4.0-48-generic   docker://19.3.11
+
+- The describe command can be used to find details of a specific resource.  The following will
+  display the details of a specific node:
+
+$ kubectl describe node m-node1
 
 [minikube-specific]
 
@@ -69,38 +73,339 @@ kubectl describe node minikube
 [minikube-specific]
 
 
+Name:               m-node1
+Roles:              master
+Labels:             beta.kubernetes.io/arch=amd64
+                    beta.kubernetes.io/os=linux
+                    kubernetes.io/arch=amd64
+                    kubernetes.io/hostname=m-node1
+                    kubernetes.io/os=linux
+                    node-role.kubernetes.io/master=
+                    role=ingress-controller
+Annotations:        kubeadm.alpha.kubernetes.io/cri-socket: /var/run/dockershim.sock
+                    node.alpha.kubernetes.io/ttl: 0
+                    projectcalico.org/IPv4Address: 192.168.56.4/24
+                    projectcalico.org/IPv4VXLANTunnelAddr: 192.168.242.192
+                    volumes.kubernetes.io/controller-managed-attach-detach: true
+CreationTimestamp:  Sat, 26 Sep 2020 14:40:19 -0400
+Taints:             node-role.kubernetes.io/master:NoSchedule
+Unschedulable:      false
+Lease:
+  HolderIdentity:  m-node1
+  AcquireTime:     <unset>
+  RenewTime:       Thu, 01 Oct 2020 14:37:34 -0400
+Conditions:
+  Type                 Status  LastHeartbeatTime                 LastTransitionTime                Reason                       Message
+  ----                 ------  -----------------                 ------------------                ------                       -------
+  NetworkUnavailable   False   Thu, 01 Oct 2020 14:01:52 -0400   Thu, 01 Oct 2020 14:01:52 -0400   CalicoIsUp                   Calico is running on this node
+  MemoryPressure       False   Thu, 01 Oct 2020 14:36:23 -0400   Sat, 26 Sep 2020 14:40:15 -0400   KubeletHasSufficientMemory   kubelet has sufficient memory available
+  DiskPressure         False   Thu, 01 Oct 2020 14:36:23 -0400   Sat, 26 Sep 2020 14:40:15 -0400   KubeletHasNoDiskPressure     kubelet has no disk pressure
+  PIDPressure          False   Thu, 01 Oct 2020 14:36:23 -0400   Sat, 26 Sep 2020 14:40:15 -0400   KubeletHasSufficientPID      kubelet has sufficient PID available
+  Ready                True    Thu, 01 Oct 2020 14:36:23 -0400   Sat, 26 Sep 2020 14:50:52 -0400   KubeletReady                 kubelet is posting ready status. AppArmor enabled
+Addresses:
+  InternalIP:  192.168.56.4
+  Hostname:    m-node1
+Capacity:
+  cpu:                2
+  ephemeral-storage:  9219412Ki
+  hugepages-2Mi:      0
+  memory:             2035284Ki
+  pods:               110
+Allocatable:
+  cpu:                2
+  ephemeral-storage:  8496610086
+  hugepages-2Mi:      0
+  memory:             1932884Ki
+  pods:               110
+System Info:
+  Machine ID:                 ca47f5d681d74a76976b9aaf7237f866
+  System UUID:                8fa853aa-b426-a649-9f91-4a3a8e346f8a
+  Boot ID:                    78dd597a-ad39-489f-9a64-4a3e80bb5b00
+  Kernel Version:             5.4.0-48-generic
+  OS Image:                   Ubuntu 20.04.1 LTS
+  Operating System:           linux
+  Architecture:               amd64
+  Container Runtime Version:  docker://19.3.11
+  Kubelet Version:            v1.19.2
+  Kube-Proxy Version:         v1.19.2
+PodCIDR:                      192.168.0.0/24
+PodCIDRs:                     192.168.0.0/24
+Non-terminated Pods:          (11 in total)
+  Namespace                   Name                                       CPU Requests  CPU Limits  Memory Requests  Memory Limits  AGE
+  ---------                   ----                                       ------------  ----------  ---------------  -------------  ---
+  calico-system               calico-kube-controllers-6ddfb4769-lz6mq    0 (0%)        0 (0%)      0 (0%)           0 (0%)         4d23h
+  calico-system               calico-node-tdmj2                          0 (0%)        0 (0%)      0 (0%)           0 (0%)         4d23h
+  calico-system               calico-typha-6794d46fcc-nqk46              0 (0%)        0 (0%)      0 (0%)           0 (0%)         4d23h
+  kube-system                 coredns-f9fd979d6-64mkt                    100m (5%)     0 (0%)      70Mi (3%)        170Mi (9%)     4d23h
+  kube-system                 coredns-f9fd979d6-p9hqt                    100m (5%)     0 (0%)      70Mi (3%)        170Mi (9%)     4d23h
+  kube-system                 etcd-m-node1                               0 (0%)        0 (0%)      0 (0%)           0 (0%)         4d23h
+  kube-system                 kube-apiserver-m-node1                     250m (12%)    0 (0%)      0 (0%)           0 (0%)         4d23h
+  kube-system                 kube-controller-manager-m-node1            200m (10%)    0 (0%)      0 (0%)           0 (0%)         4d23h
+  kube-system                 kube-proxy-knzw8                           0 (0%)        0 (0%)      0 (0%)           0 (0%)         4d23h
+  kube-system                 kube-scheduler-m-node1                     100m (5%)     0 (0%)      0 (0%)           0 (0%)         4d23h
+  tigera-operator             tigera-operator-cdc4b6478-gvsr5            0 (0%)        0 (0%)      0 (0%)           0 (0%)         4d23h
+Allocated resources:
+  (Total limits may be over 100 percent, i.e., overcommitted.)
+  Resource           Requests    Limits
+  --------           --------    ------
+  cpu                750m (37%)  0 (0%)
+  memory             140Mi (7%)  340Mi (18%)
+  ephemeral-storage  0 (0%)      0 (0%)
+  hugepages-2Mi      0 (0%)      0 (0%)
+Events:
+  Type    Reason                   Age                From                 Message
+  ----    ------                   ----               ----                 -------
+  Normal  Starting                 36m                kubelet, m-node1     Starting kubelet.
+  Normal  NodeAllocatableEnforced  36m                kubelet, m-node1     Updated Node Allocatable limit across pods
+  Normal  NodeHasSufficientMemory  36m (x8 over 36m)  kubelet, m-node1     Node m-node1 status is now: NodeHasSufficientMemory
+  Normal  NodeHasNoDiskPressure    36m (x8 over 36m)  kubelet, m-node1     Node m-node1 status is now: NodeHasNoDiskPressure
+  Normal  NodeHasSufficientPID     36m (x7 over 36m)  kubelet, m-node1     Node m-node1 status is now: NodeHasSufficientPID
+  Normal  Starting                 36m                kube-proxy, m-node1  Starting kube-proxy.
+
+
+- The following command can be used the SSH into one of the above nodes:
+
+$ ssh w-node1@192.168.56.5
+
+
+[minikube-specific]
+
+- If using Minikube, you can ssh into the node as follows:
+    - minikube ssh
+
+[minikube-specific]
+
+
+- Each node in the cluster runs the following:
+     - Docker
+     - Kubelet
+     - the kube-proxy
+
+- The kubectl command line sends HTTP REST requests to the Kubernetes API server running
+  on the master node.
+
+- If you ssh into one of the nodes you can see these running processes:
+
+    ps uax
+
+- You will see the above processes listed.
+
+USER         PID %CPU %MEM    VSZ   RSS TTY      STAT START   TIME COMMAND
+root         640  1.3  4.6 1394160 95560 ?       Ssl  18:00   0:15 /usr/bin/dockerd -H fd:// --containerd=/run/containerd/containerd.sock
+root         625  2.3  4.7 1922520 97256 ?       Ssl  18:00   0:28 /usr/bin/kubelet --node-ip=192.168.56.5 --bootstrap-kubeconfig=/etc/kubernetes/bootstrap-kubelet.conf --k
+root        1719  0.0  1.8 743152 37784 ?        Ssl  18:01   0:00 /usr/local/bin/kube-proxy --config=/var/lib/kube-proxy/config.conf --hostname-override=w-node1
+
+-----------------------------------------------------------------------------------------------------------------
+
 - The following can be used to view all pods running across all namespaces:
 
-kubectl get pods --all-namespaces
+$ kubectl get pods --all-namespaces -o wide
 
-- Just the pods for a specific namespace can be listed.
-- First find the available namespaces that are defined:
 
- kubectl get namespaces
+NAMESPACE         NAME                                        READY   STATUS      RESTARTS   AGE     IP                NODE      NOMINATED NODE   READINESS GATES
+calico-system     calico-kube-controllers-6ddfb4769-lz6mq     1/1     Running     14         4d23h   192.168.242.235   m-node1   <none>           <none>
+calico-system     calico-node-2r5dx                           1/1     Running     11         4d19h   192.168.56.7      w-node3   <none>           <none>
+calico-system     calico-node-hrmbs                           1/1     Running     12         4d20h   192.168.56.6      w-node2   <none>           <none>
+calico-system     calico-node-rblrf                           1/1     Running     15         4d23h   192.168.56.5      w-node1   <none>           <none>
+calico-system     calico-node-tdmj2                           1/1     Running     14         4d23h   192.168.56.4      m-node1   <none>           <none>
+calico-system     calico-typha-6794d46fcc-78nlc               1/1     Running     21         4d20h   192.168.56.6      w-node2   <none>           <none>
+calico-system     calico-typha-6794d46fcc-946qr               1/1     Running     25         4d23h   192.168.56.5      w-node1   <none>           <none>
+calico-system     calico-typha-6794d46fcc-nqk46               1/1     Running     19         4d23h   192.168.56.4      m-node1   <none>           <none>
+calico-system     calico-typha-6794d46fcc-sh485               1/1     Running     18         4d19h   192.168.56.7      w-node3   <none>           <none>
+ingress-nginx     ingress-nginx-admission-create-q67mx        0/1     Completed   0          30h     192.168.129.228   w-node1   <none>           <none>
+ingress-nginx     ingress-nginx-admission-patch-2hhw8         0/1     Completed   0          30h     192.168.144.91    w-node2   <none>           <none>
+ingress-nginx     ingress-nginx-controller-84cb46fccd-gngdf   1/1     Running     3          30h     192.168.138.32    w-node3   <none>           <none>
+kube-system       coredns-f9fd979d6-64mkt                     1/1     Running     14         5d      192.168.242.237   m-node1   <none>           <none>
+kube-system       coredns-f9fd979d6-p9hqt                     1/1     Running     14         5d      192.168.242.236   m-node1   <none>           <none>
+kube-system       etcd-m-node1                                1/1     Running     15         5d      192.168.56.4      m-node1   <none>           <none>
+kube-system       kube-apiserver-m-node1                      1/1     Running     15         5d      192.168.56.4      m-node1   <none>           <none>
+kube-system       kube-controller-manager-m-node1             1/1     Running     14         5d      192.168.56.4      m-node1   <none>           <none>
+kube-system       kube-proxy-dgxd4                            1/1     Running     14         4d23h   192.168.56.5      w-node1   <none>           <none>
+kube-system       kube-proxy-gs7d6                            1/1     Running     11         4d19h   192.168.56.7      w-node3   <none>           <none>
+kube-system       kube-proxy-knzw8                            1/1     Running     14         5d      192.168.56.4      m-node1   <none>           <none>
+kube-system       kube-proxy-mkmmv                            1/1     Running     12         4d20h   192.168.56.6      w-node2   <none>           <none>
+kube-system       kube-scheduler-m-node1                      1/1     Running     15         5d      192.168.56.4      m-node1   <none>           <none>
+tigera-operator   tigera-operator-cdc4b6478-gvsr5             1/1     Running     28         4d23h   192.168.56.4      m-node1   <none>           <none>
+
+
+- Since wide output was requested, the node on which each Pod is running is also listed.  This provides a nice overview 
+  the entire custer.  Since no pods have been created yet, all the Pods listed above are those required for running
+  Kubernetes cluster.
+
+- The following command can be used to continuously monitor all the pods:
+
+$ watch kubectl get pods --all-namespaces -o wide
+
+- When Pods are created by default, they are placed within the Default namespace if a specific namespace is not specified.
+- Above, the namespaces listed container the following Pods:
+
+  kube-system: This namespace contains all the pods that implement the based Kubernetes cluster.
+  calico-system: This namespace contains all the Pods providing the Pod Networking implementation selected when building the cluster.
+  ingress-nginx: Contains all of the pods implementing the Ingress Controller selected when setting up the cluster.
+
+
+- Since a cluster can has several Pods running it is common to only list those within a given namespace.  First, the following
+  command can be used to list all the defined namespaces:
+
+  $ kubectl get namespaces
+
+  NAME              STATUS   AGE
+  calico-system     Active   5d
+  default           Active   5d
+  ingress-nginx     Active   31h
+  kube-node-lease   Active   5d
+  kube-public       Active   5d
+  kube-system       Active   5d
+  tigera-operator   Active   5d
 
  - Then filter on a namespace as follows:
 
-kubectl get pods -n calico-system
+  $ kubectl get pods -n calico-system
+
+  NAME                                      READY   STATUS    RESTARTS   AGE
+  calico-kube-controllers-6ddfb4769-lz6mq   1/1     Running   14         5d
+  calico-node-2r5dx                         1/1     Running   11         4d20h
+  calico-node-hrmbs                         1/1     Running   12         4d20h
+  calico-node-rblrf                         1/1     Running   15         4d23h
+  calico-node-tdmj2                         1/1     Running   14         5d
+  calico-typha-6794d46fcc-78nlc             1/1     Running   21         4d20h
+  calico-typha-6794d46fcc-946qr             1/1     Running   25         4d23h
+  calico-typha-6794d46fcc-nqk46             1/1     Running   19         5d
+  calico-typha-6794d46fcc-sh485             1/1     Running   18         4d20h
+
+-------------------------------------------------------------------------------------------------
+
+######################################################################################
+Image for Tools to Inspect Cluster from Pod Container
+######################################################################################
+
+- The following Docker file defines a Ubuntu based image to which some some common
+  command lines tools.
+
+$ cat microservices/Kube-Tools/Dockerfile 
+
+FROM ubuntu
+RUN apt-get update
+RUN apt-get install curl -y
+RUN apt-get install dnsutils -y
+RUN apt-get install iproute2 -y
+RUN apt-get install iputils-ping -y
+CMD [ "sleep", "60m" ]
+
+- Build and push the image to Docker Hub by completing the following:
+
+$ docker build -t blgreco72dev/kube-tools .
+
+- Then list the images:
+
+REPOSITORY                             TAG                 IMAGE ID            CREATED              SIZE
+blgreco72dev/kube-tools                latest              3ce676040d97        About a minute ago   163MB
+
+
+- Lastly push the image to your publish Docker Hub Repository:
+
+$ docker push  blgreco72dev/kube-tools
+
+######################################################################################
+Building Example Microservice and Pushing to DockerHub 
+######################################################################################
+
+- This section will explain the simple .NET Core C# Microservice that will be used
+  within the examples.
+
+- Source Location:  Microservices/Kube.Service/src
+- DockerFile:       Microservices/Kube.Service/DockerFile
+
+[Service APIs]
+---------------------------------------------------------------------------------------
+curl http://localhost:6200/api/pod/host-name
+  - Returns the host name associated with the Pod in which container is running.  This 
+    will be used when scaling containers to identify the container to which the request 
+    was routed.
+
+curl http://localhost:6200/api/pod/environment-variables
+  - Returns all the environment variables defined for the running Container.
+
+curl http://localhost:6200/api/pod/app-settings
+  - Returns a simple class of settings defined within the service's application settings file.
+
+- The above APIs can be called locally before running the Microservice within Kubernetes.
+
+$ cd src/Kube.Service.WebApi/
+$ dotnet run
+
+
+[Side Node]:
+-------------------------------------------------------------------------------------------
+On Ubuntu the following command can be used to determine the process attached to a port:
+
+lsof -i :6200
+
+This can be helpful the process remains running and the service can't be restarted 
+due to the port being in use.  The output has the PID that can be killed if needed.
+
+-------------------------------------------------------------------------------------------
+
+- The following will build the Microservice and publish to a public DockerHub repository.
+- The microservice has a Docker file that allows the source to be built within a Docker
+  Container so having .NET Core installed on your local development computer is not required.
+
+- Run the following to build the Docker image.  This will create a new image tagged as a 
+  specific version and also update the latest version to be the same.
+
+$ docker build -t blgreco72dev/kube-service:v1.0 . 
+$ docker tag blgreco72dev/kube-service:v1.0 blgreco72dev/kube-service
+
+- Once done list all the built images:
+
+$ docker images
+
+REPOSITORY                             TAG                 IMAGE ID            CREATED             SIZE
+blgreco72dev/kube-service              latest              55656d4be676        17 seconds ago      211MB
+blgreco72dev/kube-service              v1.0                55656d4be676        17 seconds ago      211MB
+
+- Next, push both versions of the image to your Docker Hub repository:
+
+$ docker push blgreco72dev/kube-service:v1.0
+$ docker push blgreco72dev/kube-service
+
+- The image should now appear on your public Docker Hub Repository.
+
+- Delete the local image so it can be pulled from Docker Hub to validate they have been pushed:
+
+$ docker image rm 556 -f
+$ docker pull blgreco72dev/kube-service:v1.0
+$ docker pull blgreco72dev/kube-service
+
+- If the pull was successful, the following message should appear:
+  Status: Downloaded newer image for blgreco72dev/kube-service:v1.0
+
+
+######################################################################################
+### Running Commands within a Pod's Container
+######################################################################################
 
 - It is often useful to run commands within a Container running within a Pod.
+
 - If the Pod only has a single container (which is most often the case), the
   command will be executed within that container.  If the Pod has more than 
   one container, the -c switch must be specified to select the container by
   name.
 
 - The following will run a Container within a Pod based on an ubuntu image
-  containing the ping and curl command line executables.
+  containing the ping and curl command line executable.
 
-kubectl run client --image blgreco72dev/ubuntu-tools
+$ kubectl run client --image blgreco72dev/kube-tools
 
-- Then the following will start an interactive shell session within the 
-  client Pod's running Container:
+- Then the following will start an interactive shell session within the client
+  Pod's running Container:
 
-kubectl exec -it client -- sh
+$ kubectl exec -it client -- sh
 
-- The above will be used to sent http requests to specific Pods running
+- The above will be used to send http requests to specific Pods running
   within the cluster.
 
+- When done, just type exit.
 
 
 ######################################################################################
@@ -111,50 +416,115 @@ kubectl exec -it client -- sh
 - However, it can also be done at the command line for testing.
 
 - The following will create a pod.  This is of very limited use since its execution is not being
-  managed by a ReplicaSet.  The following image contains an simple application that will returned
-  the host name in which it runs.
+  managed by a ReplicaSet.  The following image contains a simple application that will returned
+  the host name in which it runs and other available information.
 
 
-kubectl run kubia --image=blgreco72dev/kubia --port=8080 
+---------kubectl run kubia --image=blgreco72dev/kubia --port=8080
 
+$ kubectl run kube-service --image=blgreco72dev/kube-service --port=6200
 
 - The above command will run the container within a Kubernetes pod.  A pod can contain multiple containers
-  but most often only one container is contained within a pod.
+  but most often only one container is contained within a pod.  The command specifies the image to be executed
+  within a Container of the Pod and the Port to expose on the Pod to which the running process is bound.
 
-- Each Pod has its own IP address, host name, processes.
+- The .NET Core Web Api REST service is listening on port 6200. This can be found within the Program.cs 
+  of the solution.
+
+- Each Pod has its own IP address and host name.
 - You cannot list containers but the current pods can be listed.
 
-kubectl get pods -o wide
+$ kubectl get pods -o wide
 
-NAME     READY   STATUS    RESTARTS   AGE    IP                NODE      NOMINATED NODE   READINESS GATES
-client   1/1     Running   1          17m    192.168.144.65    w-node2   <none>           <none>
-kubia    1/1     Running   0          100s   192.168.129.199   w-node1   <none>           <none>
+NAME              READY   STATUS    RESTARTS   AGE     IP                NODE      NOMINATED NODE   READINESS GATES
+client            1/1     Running   3          3h26m   192.168.144.101   w-node2   <none>           <none>
+kube-service      1/1     Running   0          19s     192.168.129.243   w-node1   <none>           <none>
 
-- The above results show the kubia running on worker node 1.  The IP of the created pod is 192.168.129.199.
-- This pod has been created on the Pod network and there fore cannot be accessed from the host operating system.
+- The above results show kube-service Pod running on w-node1.  The IP of the created pod is 192.168.129.243.
+
+- This pod has been created on the Pod network and therefore cannot be accessed from your development host 
+  operating system.
+
 - However, the Pod can be accessed from another Pod running within the same Pod notwork.  This can be shows by
   running a shell within a Container of another running Pod and pinging the Pod's IP address:
 
 kubectl exec -it client -- sh
 
-# ping 192.168.129.199
+# ping 192.168.129.243
 
-PING 192.168.129.199 (192.168.129.199) 56(84) bytes of data.
-64 bytes from 192.168.129.199: icmp_seq=1 ttl=62 time=0.782 ms
-64 bytes from 192.168.129.199: icmp_seq=2 ttl=62 time=0.560 ms
-64 bytes from 192.168.129.199: icmp_seq=3 ttl=62 time=0.589 ms
-64 bytes from 192.168.129.199: icmp_seq=4 ttl=62 time=0.618 ms
-64 bytes from 192.168.129.199: icmp_seq=5 ttl=62 time=0.677 ms
+PING 192.168.129.243 (192.168.129.243) 56(84) bytes of data.
+64 bytes from 192.168.129.243: icmp_seq=1 ttl=62 time=0.664 ms
+64 bytes from 192.168.129.243: icmp_seq=2 ttl=62 time=0.809 ms
+64 bytes from 192.168.129.243: icmp_seq=3 ttl=62 time=0.428 ms
+64 bytes from 192.168.129.243: icmp_seq=4 ttl=62 time=0.631 ms
+64 bytes from 192.168.129.243: icmp_seq=5 ttl=62 time=0.518 ms
 
-Also, the host name of the Pod can be obtained by sending a HTTP request the the Pod on port 8080:
+- Also, the host name of the Pod can be obtained by sending a HTTP request to the Pod on port 6200
+  using the associated REST url:
 
-# curl http://192.168.129.199:8080
-You've hit kubia
+# curl http://192.168.129.243:6200/api/pod/host-name
+Kube-service
 
+- Later when multiple Pods are created to run the service (using a ReplicaSet), an unique postfix is 
+  added to the name of the pod for each running instance.  This will allow us to identify the Pod to
+  which a specific request was routed.
+
+-------------------------------------------------------------------------------------------------------------------
 
 - The following command can be used to view details of a specific pod:
 
-kubectl describe pod kubia
+$ kubectl describe pod kube-service
+
+Name:         kube-service
+Namespace:    default
+Priority:     0
+Node:         w-node1/192.168.56.5
+Start Time:   Thu, 01 Oct 2020 19:35:24 -0400
+Labels:       run=kube-service
+Annotations:  cni.projectcalico.org/podIP: 192.168.129.243/32
+              cni.projectcalico.org/podIPs: 192.168.129.243/32
+Status:       Running
+IP:           192.168.129.243
+IPs:
+  IP:  192.168.129.243
+Containers:
+  kube-service:
+    Container ID:   docker://317613cbb4ba0fde43f123d8f6b22e9196f480945f82afce3fd3fb68f5d96580
+    Image:          blgreco72dev/kube-service
+    Image ID:       docker-pullable://blgreco72dev/kube-service@sha256:99fe59f1227b5c328babcd6d2074c8fa16b4d8c119a725d0cc4574e5860e6986
+    Port:           6200/TCP
+    Host Port:      0/TCP
+    State:          Running
+      Started:      Thu, 01 Oct 2020 19:35:27 -0400
+    Ready:          True
+    Restart Count:  0
+    Environment:    <none>
+    Mounts:
+      /var/run/secrets/kubernetes.io/serviceaccount from default-token-pf4lx (ro)
+Conditions:
+  Type              Status
+  Initialized       True 
+  Ready             True 
+  ContainersReady   True 
+  PodScheduled      True 
+Volumes:
+  default-token-pf4lx:
+    Type:        Secret (a volume populated by a Secret)
+    SecretName:  default-token-pf4lx
+    Optional:    false
+QoS Class:       BestEffort
+Node-Selectors:  <none>
+Tolerations:     node.kubernetes.io/not-ready:NoExecute op=Exists for 300s
+                 node.kubernetes.io/unreachable:NoExecute op=Exists for 300s
+Events:
+  Type    Reason     Age    From               Message
+  ----    ------     ----   ----               -------
+  Normal  Scheduled  9m33s  default-scheduler  Successfully assigned default/kube-service to w-node1
+  Normal  Pulling    9m32s  kubelet, w-node1   Pulling image "blgreco72dev/kube-service"
+  Normal  Pulled     9m31s  kubelet, w-node1   Successfully pulled image "blgreco72dev/kube-service" in 1.725457642s
+  Normal  Created    9m31s  kubelet, w-node1   Created container kube-service
+  Normal  Started    9m30s  kubelet, w-node1   Started container kube-service
+
 
 - The details contain the following:
     - The container running within the Pod and the image from which it was created.
@@ -163,28 +533,36 @@ kubectl describe pod kubia
     - List of events recorded pertaining to the Pod.
 
 
+######################################################################################
+### Looking Inside the Pod
+######################################################################################
+
 - Kubernetes is built on top of a container implementation.  The most common one being Docker.
 - When the minikube VM or any of the Ubuntu VMs created for the multi node cluster running in 
   Virtual Box, Docker was one of the first installed packages.
 
-- The following will ssh into the VM running the kubia Pod to view the allocated Docker images and Containers:
-- There is only one node in minikube, but for the multi node cluster, execute the following to determine the
-  node on which the kubia Pod is running:
+- The following will ssh into the VM running the kube-service Pod to view the allocated Docker 
+  images and Containers.
 
-NAME     READY   STATUS    RESTARTS   AGE   IP                NODE      NOMINATED NODE   READINESS GATES
-client   1/1     Running   2          34m   192.168.144.65    w-node2   <none>           <none>
-kubia    1/1     Running   0          18m   192.168.129.199   w-node1   <none>           <none>
+- There is only one node in minikube, but for the multi node cluster, execute the following to 
+  determine the node on which the kubia Pod is running:
 
-- In the above multi-node cluster, the kubia Pod is running on w-node1.
+$ kubectl get pods -o wide
+
+NAME              READY   STATUS    RESTARTS   AGE     IP                NODE      NOMINATED NODE   READINESS GATES
+client            1/1     Running   3          3h40m   192.168.144.101   w-node2   <none>           <none>
+kube-service      1/1     Running   0          14m     192.168.129.243   w-node1   <none>           <none>
+
+- In the above multi-node cluster, the kube-service Pod is running on w-node1.
 - Next, run the following to determine the IP address of w-node1:
 
 kubectl get nodes -o wide
 
-NAME      STATUS   ROLES    AGE     VERSION   INTERNAL-IP    EXTERNAL-IP   OS-IMAGE             KERNEL-VERSION     CONTAINER-RUNTIME
-m-node1   Ready    master   5h7m    v1.19.2   192.168.56.4   <none>        Ubuntu 20.04.1 LTS   5.4.0-48-generic   docker://19.3.11
-w-node1   Ready    <none>   4h20m   v1.19.2   192.168.56.5   <none>        Ubuntu 20.04.1 LTS   5.4.0-48-generic   docker://19.3.11
-w-node2   Ready    <none>   74m     v1.19.2   192.168.56.6   <none>        Ubuntu 20.04.1 LTS   5.4.0-48-generic   docker://19.3.11
-w-node3   Ready    <none>   59m     v1.19.2   192.168.56.7   <none>        Ubuntu 20.04.1 LTS   5.4.0-48-generic   docker://19.3.11
+NAME      STATUS   ROLES    AGE    VERSION   INTERNAL-IP    EXTERNAL-IP   OS-IMAGE             KERNEL-VERSION     CONTAINER-RUNTIME
+m-node1   Ready    master   5d5h   v1.19.2   192.168.56.4   <none>        Ubuntu 20.04.1 LTS   5.4.0-48-generic   docker://19.3.11
+w-node1   Ready    <none>   5d4h   v1.19.2   192.168.56.5   <none>        Ubuntu 20.04.1 LTS   5.4.0-48-generic   docker://19.3.11
+w-node2   Ready    <none>   5d1h   v1.19.2   192.168.56.6   <none>        Ubuntu 20.04.1 LTS   5.4.0-48-generic   docker://19.3.11
+w-node3   Ready    <none>   5d1h   v1.19.2   192.168.56.7   <none>        Ubuntu 20.04.1 LTS   5.4.0-48-generic   docker://19.3.11
 
 - If minikube is being used, run the following to ssh into the simple node:
 
@@ -192,13 +570,18 @@ minikube ssh
 
 - For the multi node cluster above, ssh into w-node1:
 
- ssh w-node1@192.168.56.5
+ $ 
 
-- Once logged into the Node running the Pod containing the kubia container, complete the following to inspect the Docker objects:
+- Once logged into the Node running the Pod containing the kube-container container, complete the following to inspect the Docker objects:
 
 - List the images installed on the Node:
 
-docker images
+
+[HERE]
+
+
+
+$ docker images
 
 blgreco72dev/kube-service-1   latest              7ec71e420a81        10 hours ago        211MB
 blgreco72dev/ubuntu-tools     latest              fcd47ed02192        36 hours ago        114MB
@@ -1924,65 +2307,183 @@ TODO:
 TODO:
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 ######################################################################################
-!!!!!!!!!!!  Exposing Services externally using Ingress Resource
+Ingress Resources and Controller Configuration
 ######################################################################################
 
-- The issue with creating a LoadBalancer as discussed in the last section is that a LoadBalancer
-  service needs to be created for each service-api.  Each such created service will have its own
-  defined static IP address and Port.  
+- The issue with creating services is that one is needed for each service-api.  
+  Each such created service will have its own static IP address (for the case of a
+  load balancer service) defining a static IP address and Port.  
 
-- Ingress is the next logical step in that it exposes only a single static IP address and Port
-  that can be used to route requests to multiple internal defines service-apis running within 
-  Pods.
+- Ingress is the next step in that it exposes only a single static IP address and Port that can 
+  be used to route requests to multiple internal defines service-apis running within Pods.
 
 - For this to function, an Ingress controller needs to be running within the cluster.  This is already
   the case for most cloud hosted Kubernetes services.  But if using minikube, it must be enabled.
 
 $ minikube addons list
 $ minikube addons enable Ingress
+
+-----------------------------------------------
+Installing Ingress Controller (bare Metal)
+-----------------------------------------------
+
+- When creating a Kubernetes cluster using kubeadm, an Ingress controller is not configured by default.
+- The following URL provides a list of Ingress Controllers:
+
+  https://kubernetes.io/docs/concepts/services-networking/ingress-controllers/
+
+- For this Kubernetes Cluster, the NGINX Ingress controller will be utilized.  I found the documentation to
+  be rather lacking in this area but was able to get Ingress working for this controller.  Additional time,
+  should be taken to research in greater depth.
+
+- The Bare-Metal (Using NodePort) installation was used:
+
+  https://kubernetes.github.io/ingress-nginx/deploy/#bare-metal
+
+- This was completed by running the following:
+
+kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v0.35.0/deploy/static/provider/baremetal/deploy.yaml
+
+- After the above installs, the following shows the created resources providing the Ingress NGINX implementation.
+
+$ kubectl get pods -n ingress-nginx -o wide
+
+NAME                                        READY   STATUS      RESTARTS   AGE   IP                NODE      NOMINATED NODE   READINESS GATES
+ingress-nginx-admission-create-q67mx        0/1     Completed   0          24h   192.168.129.228   w-node1   <none>           <none>
+ingress-nginx-admission-patch-2hhw8         0/1     Completed   0          24h   192.168.144.91    w-node2   <none>           <none>
+ingress-nginx-controller-84cb46fccd-gngdf   1/1     Running     2          24h   192.168.138.31    w-node3   <none>           <none>
+
+
+- The above shoes the NGINX pod running that provides the implementation.  The other two pods with
+a status of Completed at first seems alerting as if something when wrong.  However, after doing
+some research, these are jobs that executed during the installation.  In Kubernetes, Pods running 
+one-time jobs are not deleted when done so the logs can be inspected before deletion.
+
+$ kubectl get jobs -n ingress-nginx
+
+NAME                             COMPLETIONS   DURATION   AGE
+ingress-nginx-admission-create   1/1           2s         24h
+ingress-nginx-admission-patch    1/1           2s         24h
+
+
+- The following shows the NGINX services created:
+
+$ kubectl get services -n ingress-nginx
+
+NAME                                 TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)                      AGE
+ingress-nginx-controller             NodePort    10.99.185.220   <none>        80:31201/TCP,443:30557/TCP   24h
+ingress-nginx-controller-admission   ClusterIP   10.102.236.16   <none>        443/TCP                      24h
+
+- The above shows two services.  The NodePort service is used to invoke the NGINX Ingress implementation to route
+  specific web request URLS to specific service-apis running within Pods.  Above, 31201 is listed as the Port on
+  which the ingress service listens for requests.  As with any other type of NodePort based Service, this port 
+  can be used on any of the Nodes running within the cluster to access the service:
+
+$ kubectl get nodes -o wide
+
+NAME      STATUS   ROLES    AGE     VERSION   INTERNAL-IP    EXTERNAL-IP   OS-IMAGE             KERNEL-VERSION     CONTAINER-RUNTIME
+m-node1   Ready    master   4d17h   v1.19.2   192.168.56.4   <none>        Ubuntu 20.04.1 LTS   5.4.0-48-generic   docker://19.3.11
+w-node1   Ready    <none>   4d16h   v1.19.2   192.168.56.5   <none>        Ubuntu 20.04.1 LTS   5.4.0-48-generic   docker://19.3.11
+w-node2   Ready    <none>   4d13h   v1.19.2   192.168.56.6   <none>        Ubuntu 20.04.1 LTS   5.4.0-48-generic   docker://19.3.11
+w-node3   Ready    <none>   4d13h   v1.19.2   192.168.56.7   <none>        Ubuntu 20.04.1 LTS   5.4.0-48-generic   docker://19.3.11
+
+So any of the following would work as that start of the URL to invoke services configured for access at a specific path:
+
+http://192.168.56.4:31201/
+http://192.168.56.5:31201/
+http://192.168.56.6:31201/
+http://192.168.56.7:31201/
+
+
+All the details of the Ingress NGINX service will be viewed as follows: 
+
+$ kubectl describe service -n ingress-nginx ingress-nginx-controller
+
+Name:                     ingress-nginx-controller
+Namespace:                ingress-nginx
+Labels:                   app.kubernetes.io/component=controller
+                          app.kubernetes.io/instance=ingress-nginx
+                          app.kubernetes.io/managed-by=Helm
+                          app.kubernetes.io/name=ingress-nginx
+                          app.kubernetes.io/version=0.35.0
+                          helm.sh/chart=ingress-nginx-2.13.0
+Annotations:              <none>
+Selector:                 app.kubernetes.io/component=controller,app.kubernetes.io/instance=ingress-nginx,app.kubernetes.io/name=ingress-nginx
+Type:                     NodePort
+IP:                       10.99.185.220
+Port:                     http  80/TCP
+TargetPort:               http/TCP
+NodePort:                 http  31201/TCP
+Endpoints:                192.168.138.31:80
+Port:                     https  443/TCP
+TargetPort:               https/TCP
+NodePort:                 https  30557/TCP
+Endpoints:                192.168.138.31:443
+Session Affinity:         None
+External Traffic Policy:  Cluster
+Events:                   <none>
+
+- The above shows the details of the NodePort based service and how Node Port 31201 maps to a Pod with an IP
+  of 192.168.138.31 on port 80 for HTTP traffic.
+
+- Next, the following shows the high level and details of the created Ingress resource:
+
+$ kubectl get ingress
+
+NAME              CLASS    HOSTS   ADDRESS        PORTS   AGE
+example-ingress   <none>   *       192.168.56.7   80      58m
+
+- Instead of having to use one of the specific Node IPs and Port 31201 as shown in the prior
+  section, the single IP address listed for the Ingress resource can be used as follows:
+
+curl http://192.168.56.7:31201
+
+- The following shows the details for the Ingress:
+
+$ kubectl describe ingress example-ingress
+
+Name:             example-ingress
+Namespace:        default
+Address:          192.168.56.7
+Default backend:  default-http-backend:80 (<error: endpoints "default-http-backend" not found>)
+Rules:
+  Host        Path  Backends
+  ----        ----  --------
+  *           
+              /   kubia-nodeport:8080   192.168.129.233:8080,192.168.138.30:8080,192.168.144.97:8080)
+Annotations:  nginx.ingress.kubernetes.io/rewrite-target: /$1
+Events:       <none>
+
+
+######################################################################################
+Exposing Service using Ingress Controller to External Consumers
+######################################################################################
+
+- The following will provide an example of exposing a service-api running as a container
+  within a Kubernetes Pod.
+
+- 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 - The following assumes that all service resources have been deleted but there is a ReplicaSet
   resource created with a replica count of 3.
@@ -2033,11 +2534,17 @@ $ kubectl create -f ingress-service.yaml
 $ kubectl get ingress
 
 NAME    CLASS    HOSTS               ADDRESS      PORTS   AGE
-kubia   <none>   kubia.example.com   172.17.0.3   80      3m
+kubia   <none>   kubia.example.com                80      3m
+
+
+nslookup kubia.test.com
+
+Name:   kubia.test.com
+Address: 69.172.200.109
 
 Add the following line to /etc/host file:
 
-172.17.0.3 kubia.example.com
+69.172.200.109 kubia.test.com
 
 - Run the following several times and Ingress will route the calls to one of the
  nodes within the cluster using port 30123 which then will be routed to one of
@@ -2190,6 +2697,19 @@ $ curl http://kubia-srv.default.svc.cluster.local
 
 - If the run the commands above a few times, you will again see that the service 
   routes to different pods belonging to the service.
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 ######################################################################################
