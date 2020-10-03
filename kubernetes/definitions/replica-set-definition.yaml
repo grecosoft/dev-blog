@@ -1,0 +1,19 @@
+apiVersion: apps/v1
+kind: ReplicaSet
+metadata:
+  name: kube-service-rs
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: kube-srv
+  template:
+    metadata:
+      labels:
+        app: kube-srv
+    spec:
+      containers:
+      - name: kube-srv-container
+        image: blgreco72dev/kube-service
+        ports:
+        - containerPort: 6200

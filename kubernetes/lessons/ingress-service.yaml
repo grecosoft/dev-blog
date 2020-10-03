@@ -1,15 +1,20 @@
-apiVersion: projectcalico.org/v3
-kind: GlobalNetworkPolicy
+apiVersion: networking.k8s.io/v1
+kind: Ingress
 metadata:
-  name: allow-nodeport
+  name: example-ingress
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /$1
 spec:
-  preDNAT: true
-  applyOnForward: true
-  order: 10
-  ingress:
-    - action: Allow
-      protocol: TCP
-      destination:
-        selector: app=kubia
-        ports: [31852]
+  rules:
+  - http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: kubia-nodeport
+            port:
+              number: 8080
+
+
 
