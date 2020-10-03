@@ -1,0 +1,16 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <LangVersion>latest</LangVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Kube.Service.Domain\Kube.Service.Domain.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="NetFusion.Common" Version="3.2.166" />
+    <PackageReference Include="NetFusion.Base" Version="3.2.166" />
+    <PackageReference Include="NetFusion.Bootstrap" Version="3.2.166" />
+    <PackageReference Include="NetFusion.Settings" Version="3.2.166" />
+    <PackageReference Include="NetFusion.Messaging" Version="3.2.166" />
+  </ItemGroup>
+</Project>

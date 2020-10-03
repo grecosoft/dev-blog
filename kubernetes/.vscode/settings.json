@@ -2,6 +2,8 @@
     "cSpell.words": [
         "CPUs",
         "Kubernetes",
+        "Microservices",
+        "api's",
         "apiserver",
         "cdrom",
         "cgroupdriver",
@@ -13,10 +15,14 @@
         "kubectl",
         "kubelet",
         "kubenodes",
+        "kubia",
+        "minikube",
         "mkdir",
         "nano",
+        "replicaset",
         "systemd",
         "unmounting",
         "vboxnet"
-    ]
+    ],
+    "cSpell.enabled": true
 }

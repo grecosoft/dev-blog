@@ -1,0 +1,18 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Build:Kube.Service",
+            "command": "dotnet",
+            "type": "process",
+            "args": [
+                "build",
+                "${workspaceFolder}/src/Kube.Service.WebApi/Kube.Service.WebApi.csproj"
+            ],
+            "problemMatcher": "$msCompile",
+            "group": {
+                "kind": "build", "isDefault": true
+            }
+        }
+    ]
+}
