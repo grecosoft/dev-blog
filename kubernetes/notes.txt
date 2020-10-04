@@ -1635,6 +1635,8 @@ $  kubectl delete rs kube-service-rs
   needs to communicate with as part of a Microservice solution running in a Kubernetes 
   cluster.
 
+  https://medium.com/google-cloud/kubernetes-nodeport-vs-loadbalancer-vs-ingress-when-should-i-use-what-922f010849e0
+
 - These communications may be between Pods within the cluster and also from clients
   existing outside of the cluster.
 
@@ -1663,7 +1665,7 @@ $  kubectl delete rs kube-service-rs
 
 
 =====================================================================================================
-Creating a Service (LoadBalancer)
+LoadBalancer Service Type
 =====================================================================================================
 
 *** It was found that a LoadBalancer type of service will only work within a Cluster implementation
@@ -1683,8 +1685,41 @@ Creating a Service (LoadBalancer)
 https://stackoverflow.com/questions/44110876/kubernetes-service-external-ip-pending
 
 
+- Next, a service will be created to expose the service-api running within pods associated
+  with the kubia-set.
+
+$ kubectl expose replicaset kubia-set --type=LoadBalancer --port=8080
+
+$ kubectl get services
+
+NAME         TYPE           CLUSTER-IP      EXTERNAL-IP     PORT(S)          AGE
+kubernetes   ClusterIP      10.96.0.1       <none>          443/TCP          2d8h
+kubia-set    LoadBalancer   10.104.193.98   10.104.193.98   8080:32041/TCP   27s
+
+- Since the type of LoadBalancer was specified, the service will create an External-IP that
+  can be used to call the service from outside the cluster.
+
+- Running the following command several times shows how requests are load balanced and set
+  to different Node/Pods:
+
+curl 10.104.193.98:8080
+
+greco@ubuntupc:~/_dev/git/dev-blog/kubernetes$ curl 10.104.193.98:8080
+You've hit kubia-set-5ndp2
+greco@ubuntupc:~/_dev/git/dev-blog/kubernetes$ curl 10.104.193.98:8080
+You've hit kubia-set-pd6pb
+greco@ubuntupc:~/_dev/git/dev-blog/kubernetes$ curl 10.104.193.98:8080
+You've hit kubia-set-5ndp2
+greco@ubuntupc:~/_dev/git/dev-blog/kubernetes$ curl 10.104.193.98:8080
+You've hit kubia-set-5ndp2
+greco@ubuntupc:~/_dev/git/dev-blog/kubernetes$ curl 10.104.193.98:8080
+
+- Next, delete the service.
+
+$ kubectl delete service kubia-set
+
 =====================================================================================================
-Creating a Service (NodePort)
+NodePort Service Type
 =====================================================================================================
 
 - Currently, the only way to communicate with a service-api running within a Pod's container
@@ -1758,6 +1793,9 @@ kubernetes        ClusterIP   10.96.0.1        <none>        443/TCP          6d
 
 - The above shows they newly created Service matching the name of the ReplicaSet that was
 used to determine which Pods it should be defined for.
+
+- When the NodePort Service Resource was created, note that the IP 10.102.102.249  was assigned
+  to the CLUSTER-IP.  When a NodePort is created, a ClusterIP service is also defined.
 
 - Before running the above command, the only way to access a service-api running within
   a Container of a Pod was to use the IP address of the Pod.  Since Pods are not static
@@ -1849,8 +1887,7 @@ $ kubectl get nodes -o wide
     kube-service-rs-7vm88
     kube-service-rs-h7wk2
 
-    -------------------------------------------------------------------------------------------------------
-    
+-------------------------------------------------------------------------------------------------------
 
 - Run the following command to show more details of the created service:
 
@@ -1899,104 +1936,62 @@ $ kubectl get nodes -o wide
         - Later, the Ingress Service will be shown which addresses these issues by having a single IP address
           and defines URL Routes used to identify a specific service-api. 
 
-[HERE]
-
-
-
------------------------------------------------------------------------------------------------------
-Additional NodePort Notes:
------------------------------------------------------------------------------------------------------
-
-  - When the NodePort Service Resource was created, note that the IP 10.107.150.101 was assigned to the
-    CLUSTER-IP.  When a NodePort is created, a ClusterIP service is also defined.
-
-  - The ClusterID can only be accessed from which Cluster.  This IP address can be used within any 
-    service-api running within a Pod's Container.  The ClusterIP provides a single static IP address 
-    that service-apis within the cluster can used to communicate with one another.  This IP address
-    can also be accessed by any Node that is a member of the cluster:
-
-  - To test this, first log into a Container running within a Pod:
-
-     $ kubectl exec -it client -- sh
-
-       - Then type the following curl command:
-       
-       # curl http://10.107.150.101:8080
-
-       - You will get a response from one of the Pod's container running the service-api
-
-       # exit
-
-  - Next ssh into one of the Nodes that is a member of a cluster:
-
-    $ ssh w-node1@192.168.56.5
-      curl http://10.107.150.101:8080
-
-    - You will get a response from one of the service-apis running within a Pod container. 
-
-  - As before, a service-api running within a Pod associated with the service will be 
-    randomly selected to handle the request.
-
+---------------------------------------------------------------------------------------------------------
 
   - A NodePort type Service can also be created using an YAML definition as follows:
 
-    cat lessons/nodeport-service.yaml 
+    cat definitions/nodeport-srv-definition.yaml  
 
     apiVersion: v1
     kind: Service
     metadata:
-      name: kubia-nodeport
+      name: kube-service-np
     spec:
       type: NodePort
       ports:  
       - port: 80
-        targetPort: 8080
-        nodePort: 30123
+        targetPort: 6200
+        nodePort: 31490
       selector:
-        app: kubia
+        app: kube-srv
 
-    - Before creating the above service, first delete the current one created earlier 
-      at the command line:
+    - Before creating the above service, first delete the current one created earlier:
 
-    $ kubectl delete service kubia-srv
+    $ kubectl delete service kube-service-rs
 
     - Then create the service as follows:
 
-    $ kubectl create -f lessons/nodeport-service.yaml
+    $ kubectl create -f definitions/nodeport-srv-definition.yaml
 
-    NAME             TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)        AGE   SELECTOR
-    kubernetes       ClusterIP   10.96.0.1        <none>        443/TCP        41h   <none>
-    kubia-nodeport   NodePort    10.106.179.225   <none>        80:30123/TCP   21s   app=kubia
+    $ kube get services -o wide
+
+NAME              TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)        AGE     SELECTOR
+kube-service-np   NodePort    10.103.203.208   <none>        80:31490/TCP   19s     app=kube-srv
+kubernetes        ClusterIP   10.96.0.1        <none>        443/TCP        7d19h   <none>
 
     - Validate that the service-api can be called on any Node that is a member of the cluster:
 
-    $ curl http://192.168.56.4:30123
-    $ curl http://192.168.56.5:30123
-    $ curl http://192.168.56.6:30123
-    $ curl http://192.168.56.7:30123
+    $ curl http://192.168.56.4:31490/api/pod/host-name
+    $ curl http://192.168.56.5:31490/api/pod/host-name
+    $ curl http://192.168.56.6:31490/api/pod/host-name
+    $ curl http://192.168.56.7:31490/api/pod/host-name
 
+    - When done, the serivce can be deleted:
 
+    $ kube delete services kube-service-np
 
-
-[HERE]
-
-
-
------------------------------------------------------------------------------------------------------
+================================================================================================================
 ClusterIP Service Type:
------------------------------------------------------------------------------------------------------
-
-https://medium.com/google-cloud/kubernetes-nodeport-vs-loadbalancer-vs-ingress-when-should-i-use-what-922f010849e0
+================================================================================================================
 
 - Above showed that when a NodePort service was created, a ClusterIP service type was also created
   as seen by the Cluster-IP column having a value.
 
-- While a NodePort exposes the service externally on any node contained within the Custer at a specific 
+- While a NodePort exposes the service externally on any Node contained within the Custer at a specific 
   externally defined Port, not all services within a Microservice architecture need be accessed by external
   clients.
 
 - Only the services that must be called by external clients should be exposed.
-- We are kind of working backwards since a ClusterIP is more limiting than the NodePort service type.
 
 - This section will show how to create ClusterIp service type and how it can only be accessed within
   the cluster.
@@ -2007,59 +2002,45 @@ https://medium.com/google-cloud/kubernetes-nodeport-vs-loadbalancer-vs-ingress-w
   messages received on a message bus, or Microservices providing common functionality internally to 
   all other Microservices running with the cluster.
 
-
-- Before continuing, the NodePort service type needs to be deleted:
-
-$ kubectl delete service kubia-nodeport
-
-- Now that the NodePort service has been deleted, try calling the service-api on one of the 
-  nodes within the cluster:
-
-  curl http://192.168.56.4:32299
-
-  curl: (7) Failed to connect to 192.168.56.4 port 32299: Connection refused
-
-- Next, a ClusterIP specific service will be created.  This will result in the service only being
-  available to components running within the cluster.
-
-$ cat lessons/cluster-service.yaml 
+$ cat definitions/clusterip-srv-definition.yaml
 
 apiVersion: v1
 kind: Service
 metadata:
-  name: kubia-srv
+  name: kube-service-ci
 spec:
   ports:
   - port: 80
-    targetPort: 8080
+    targetPort: 6200
   selector:
-    app: kubia
+    app: kube-srv
 
-$ kubectl create -f service.yaml 
-$ kubectl get services
+$ kubectl create -f definitions/clusterip-srv-definition.yaml 
+$ kubectl get services -o wide
+
+NAME              TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)        AGE     SELECTOR
+kube-service-ci   ClusterIP   10.97.105.95   <none>        80/TCP         34s     app=kube-srv
+kubernetes        ClusterIP   10.96.0.1      <none>        443/TCP        6d20h   <none>
+
 
 - The above is declaring a ClusterIP service using an YAML file.  If the type of service
   is not specified, it will default to ClusterIP.
-
-$ kubectl get service -o wide
-
-NAME         TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)   AGE    SELECTOR
-kubernetes   ClusterIP   10.96.0.1       <none>        443/TCP   41h    <none>
-kubia-srv    ClusterIP   10.111.189.83   <none>        80/TCP    114s   app=kubia
 
 - The above shows that just a ClusterIP service was created.  Unlike a NodePort, the PORTS(S) 
   column does not specify the IP address to call the service-api on the VM Nodes contained 
   within the cluster.  Therefore, the service can only be access from within the cluster.
 
+- Note that the Service definition shows the service should available on port 80 by mapping
+  it to port 6200 on which the service-api is listening.
+
 - Validate this by calling the service-api from within a Node and also from within a container
   running within a Pod:
 
-
- $ kubectl exec -it client -- sh
+    $ kubectl exec -it client -- sh
 
        - Then type the following curl command:
        
-       # curl http://10.111.189.83
+       # curl 10.97.105.95/api/pod/host-name
 
        - You will get a response from one of the Pod's container running the service-api
 
@@ -2068,15 +2049,375 @@ kubia-srv    ClusterIP   10.111.189.83   <none>        80/TCP    114s   app=kubi
   - Next ssh into one of the Nodes that is a member of a cluster:
 
     $ ssh w-node1@192.168.56.5
-      curl http://10.111.189.83
+      curl 10.97.105.95/api/pod/host-name
 
     - You will get a response from one of the service-apis running within a Pod container. 
 
-  - Note that the Service definition that the service should available on port 80 by mapping
-    it to port 8080 on which the service-api is listening.
+-------------------------------------------------------------------------------------------------
+
+- While a client service running within the cluster can use the static IP address of the service
+  to call any Pod hosting the service-api, there are better way rather than using the port directly.
+  The client service can discover the IP address using the following methods.
+
+- If a Pod is created after the service has been created, Kubernetes defines an Environment Variable
+  that the client service-api can use containing the value of the IP address.  
+
+- Delete the client Pod and recreate it so it will have been created after the Services.
+
+$ kubectl delete pod client
+$ kubectl run client --image blgreco72dev/kube-tools
+
+
+- List the serivces to use as a reference:
+
+NAME              TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)   AGE
+kube-service-ci   ClusterIP   10.104.166.225   <none>        80/TCP    89m
+kubernetes        ClusterIP   10.96.0.1        <none>        443/TCP   7d21h
+
+
+- Next exec into a Pod's container and list the environment variables.
+
+$ kubectl exec client -- env
+
+
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+HOSTNAME=client
+** KUBE_SERVICE_CI_PORT_80_TCP_ADDR=10.104.166.225
+KUBERNETES_SERVICE_HOST=10.96.0.1
+** KUBE_SERVICE_CI_SERVICE_HOST=10.104.166.225
+** KUBE_SERVICE_CI_PORT_80_TCP=tcp://10.104.166.225:80
+** KUBERNETES_PORT_443_TCP_PROTO=tcp
+** KUBE_SERVICE_CI_SERVICE_PORT=80
+KUBERNETES_PORT=tcp://10.96.0.1:443
+KUBERNETES_PORT_443_TCP=tcp://10.96.0.1:443
+KUBERNETES_PORT_443_TCP_ADDR=10.96.0.1
+** KUBE_SERVICE_CI_PORT=tcp://10.104.166.225:80
+** KUBE_SERVICE_CI_PORT_80_TCP_PROTO=tcp
+KUBERNETES_SERVICE_PORT=443
+KUBERNETES_SERVICE_PORT_HTTPS=443
+KUBERNETES_PORT_443_TCP_PORT=443
+** KUBE_SERVICE_CI_PORT_80_TCP_PORT=80
+HOME=/root
+
+--------------------------------------------------------------------------------------------
+
+- The other, and better option, is to use the build in DNS server.
+- This DNS service can be accessed by all Pod service-apis running in the cluster.
+- The DNS service is a member of the kube-system namespace:
+
+
+- Each service giets a DNS entry in the internal DNS server, and client pods that know the name
+  of the service can access it through it fully qualified domain name (FQDN) instead of of using
+  the corresponding environment variable.
+
+- The following is the DNS entry for the kube-service:
+
+kube-service-ci.default.svc.cluster.local
+
+- If the calling node is within the same Namespace, then just kube-service-ci can be used.
+
+- This can be tested by running bash inside one of the pod containers:
+
+$ kubectl exec -it client -- bash
+
+- Once inside the container the following will work:
+
+# curl http://kube-service-ci.default.svc.cluster.local/api/pod/host-name
+# curl http://kube-service-ci/api/pod/host-name
+
+- If the run the commands above a few times, you will again see that the service 
+  routes to different pods belonging to the service.
+
+
+=====================================================================================
+Service Endpoints
+=====================================================================================
+
+- When either a NodePort or ClusterIP servce types are created, Service Endpoint
+  resources are also created and used by the services.
+
+- The following will list the currently defined Service Endpoint:
+
+$ kubectl get endpoints 
+
+NAME              ENDPOINTS                                                        AGE
+kube-service-ci   192.168.129.201:6200,192.168.138.50:6200,192.168.144.123:6200    11m
+kubernetes        192.168.56.4:6443     
+
+- The Ingress Service type discussed next does not create endpoints as done by the
+  NodePort and Cluster service types.  Therefore, one of these two service types
+  must be created first.
+
+=====================================================================================
+Ingress Serivce Type
+=====================================================================================
+
+- The issue with creating services is that one is needed for each service-api.  
+  Each such created service will have its own static IP address and Port (for the case of the
+  LoadBalancer & ClusterIp service types).  For the NodePort serivce type, an Port is exposed
+  on all Nodes and can be access by using any of the Node's corresponding IP addresses.  
+
+- Ingress is the next step in that it exposes only a single static IP address and Port that can 
+  be used to route requests to multiple internal defines service-apis running within Pods.
+
+- For this to function, an Ingress controller needs to be running within the cluster.  This is already
+  the case for most cloud hosted Kubernetes services.  But if using minikube, it must be enabled.
+
+$ minikube addons list
+$ minikube addons enable Ingress
+
+-----------------------------------------------
+Installing Ingress Controller (bare Metal)
+-----------------------------------------------
+
+- When creating a Kubernetes cluster using kubeadm, an Ingress controller is not configured by default.
+- The following URL provides a list of Ingress Controllers:
+
+  https://kubernetes.io/docs/concepts/services-networking/ingress-controllers/
+
+- For this Kubernetes Cluster, the NGINX Ingress controller will be utilized.  I found the documentation to
+  be rather lacking in this area but was able to get Ingress working for this controller.  Additional time,
+  should be taken to research in greater depth.  However, this is the most popular option it seems.
+
+- The Bare-Metal (Using NodePort) installation was used:
+
+  https://kubernetes.github.io/ingress-nginx/deploy/#bare-metal
+
+- This was completed by running the following:
+
+kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v0.35.0/deploy/static/provider/baremetal/deploy.yaml
+
+- After the above installs, the following shows the created resources providing the Ingress NGINX implementation.
+
+$ kubectl get pods -n ingress-nginx -o wide
+
+NAME                                        READY   STATUS      RESTARTS   AGE    IP                NODE      NOMINATED NODE   READINESS GATES
+ingress-nginx-admission-create-q67mx        0/1     Completed   0          3d4h   192.168.129.228   w-node1   <none>           <none>
+ingress-nginx-admission-patch-2hhw8         0/1     Completed   0          3d4h   192.168.144.91    w-node2   <none>           <none>
+ingress-nginx-controller-84cb46fccd-84pgt   1/1     Running     5          26h    192.168.144.125   w-node2   <none>           <none>
+
+
+- The above shoes the NGINX pod running that provides the implementation.  The other two pods with
+a status of Completed at first seems alerting as if something when wrong.  However, after doing
+some research, these are jobs that executed during the installation.  In Kubernetes, Pods running 
+one-time jobs are not deleted when done so the logs can be inspected before deletion.
+
+$ kubectl get jobs -n ingress-nginx
+
+NAME                             COMPLETIONS   DURATION   AGE
+ingress-nginx-admission-create   1/1           2s         24h
+ingress-nginx-admission-patch    1/1           2s         24h
+
+- The following shows the NGINX services created:
+
+$ kubectl get services -n ingress-nginx
+
+NAME                                 TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)                      AGE
+ingress-nginx-controller             NodePort    10.99.185.220   <none>        80:31201/TCP,443:30557/TCP   24h
+ingress-nginx-controller-admission   ClusterIP   10.102.236.16   <none>        443/TCP                      24h
+
+- The above shows two services.  The NodePort service is used to invoke the NGINX Ingress implementation to route
+  specific web request URLS to specific service-apis running within Pods.  Above, 31201 is listed as the Port on
+  which the ingress service listens for requests.  As with any other type of NodePort based Service, this port 
+  can be used on any of the Nodes running within the cluster to access the service.
+
+*** However, a single static IP address is assigned to the Ingress Controller and is what should be used.
+*** As discussed before, clients should never need to know the IPs of the Nodes running within the cluster.
+*** This will be shown in the next section after an Ingress Controller has been created.
+
+------------------------------------------------------------------------------------------------------------------
+
+============================================================================================
+Creating Ingress Controller for ReplicaSet
+============================================================================================
+
+- The following are the steps required for exposing a service to outside the Cluster using an Ingress Controller:
+    1. Define a ReplicaSet for the Pod to host the service-api
+    2. Create a ClusterIP or NodePort Service that will select the Pods defined by the ReplicaSet
+    3. Define the Ingress Controller so it's selector references the Service.
+
+- Run the following to create Pods running the .NET Core Microservice:
+
+   $ kubectl create -f definitions/replica-set-definition.yaml 
+  
+- Next, run the following to create a ClusterIP service for the Pods:
+
+    $ kubectl create -f definitions/clusterip-srv-definition.yaml 
+
+- The above two commmands have already been explained in prior sections.  At this point, the service-api can
+   only be access from whin the Cluster.  Next, an Ingress Controller will be created to expose the serivce.
+
+cat definitions/ingress-controller-definition.yaml 
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: kube-service
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  rules:
+  - host: kube-apis.info
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: kube-service-ci
+            port:
+              number: 6200
+
+- Next, create the ingress controller by submitting the above definition file to Kubernetes.
+
+$ kubectl create -f definitions/ingress-controller-definition.yaml 
+
+- Run the following command to view the created Ingress Controller and Ingress Service:
+
+$ kubectl get ingress
+
+NAME           CLASS    HOSTS            ADDRESS        PORTS   AGE
+kube-service   <none>   kube-apis.info   192.168.56.6   80      2m30s
+
+$ kube get services -n ingress-nginx
+
+NAME                                 TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)                      AGE
+ingress-nginx-controller             NodePort    10.99.185.220   <none>        80:31201/TCP,443:30557/TCP   4d2h
+ingress-nginx-controller-admission   ClusterIP   10.102.236.16   <none>        443/TCP                      4d2h
+
+
+- Above the path "/" was used.  But to add additional service-apis, multiple paths
+  can be defined, one for each CusterIP service (which is defined on a set of pods
+  having matching labels) that Ingress matches to the request of the URL to determine 
+  the service to call and forward the request.
+
+----------------------------------------------------------------------------------------------------------------------
+
+- Note the following about the above ingress information and service-api call:
+      - An address will be assigned to the Ingress controller.  This can take a minute
+        before an IP address is shown.
+      - The listed IP address, based on our Kubernetes Cluster setup, is for one of the Nodes 
+        running within the Cluster.
+      - Within the list of Services belonging to the ingress-nginx namespace, the first one listed
+        if of type NodePort.  It is of type NodePort since this was the option used when the creating
+        the cluster.  This serivce has 31201 listed as the node-port.
+      - The IP address assigned to the Ingress controller (192.168.56.6) and the port assigned to the
+        NodePort ingress Controller (31201) are used to invoke configured ingress services.
+
+      
+- Since the Host name kube-apis.info was specified for the ingress entry that exposes the serivce-api,
+  it must be specified when making the call as follows:
+
+$ curl 192.168.56.6:31201/api/pod/host-name -H "Host:kube-apis.info"
+
+- As before when using the other serivce types within an Ingress Controller, making multiple calls will
+  route the request to any of the Pods running the service-api:
+
+    kube-service-rs-txzmd
+    kube-service-rs-txzmd
+    kube-service-rs-jdd9g
+    kube-service-rs-h4lkd
+    kube-service-rs-txzmd
+
+- The other option is to add the following entry to your /etc/hosts file:
+    
+  $ sudo nano /etc/hosts
+
+  192.168.56.6 kube-apis.info
+
+- After the above entry is made, the service-api can be called as follows:
+
+  $ curl kube-apis.info:31201/api/pod/host-name
+
+---------------------------------------------------------------------------------------------------------
+
+- Additional notes about Ingress Controllers:
+
+  - Since the Ingress-nginx Serivce is being implemented as a NodePort serivce, the IP of any Node within
+    the cluster can be use to invoke the service-api as can be done with any type of NodePort serivce:
+
+        $ curl 192.168.56.7:31201/api/pod/host-name -H "Host:kube-apis.info"
+        $ curl 192.168.56.4:31201/api/pod/host-name -H "Host:kube-apis.info"
+
+  - For an Ingress controller to function, it must have Endpoints defined for the serivce-api indicating
+    which Pods provide the service-api implementation.  The Endpoints are not created directly but are
+    done so by defining a NodePort or ClusterIP service.  These endpoints can be listed:
+
+        $ kubectl get endpoints
+
+        NAME              ENDPOINTS                                                     AGE
+        kube-service-ci   192.168.129.217:6200,192.168.138.1:6200,192.168.144.76:6200   29m
+        kubernetes        192.168.56.4:6443 
+
+  - For this example, the Endpoints where created by declaring a ClusterIP service.  A NodePort service
+    could have also been used.  However, it is best to reduce the surface area for how a service-api
+    can be called.  If a NodePort was used, the service-api could have also been invoked using the specified
+    Port on any Node's IP Address within the cluster. 
+
+  - Ingress Controllers should only expose the service-apis that need to be accessed from outside the cluster.
+
+----------------------------------------------------------------------------------------------------------------
+
+All the details of the Ingress NGINX service will be viewed as follows: 
+
+$ kubectl describe service -n ingress-nginx ingress-nginx-controller
+
+Name:                     ingress-nginx-controller
+Namespace:                ingress-nginx
+Labels:                   app.kubernetes.io/component=controller
+                          app.kubernetes.io/instance=ingress-nginx
+                          app.kubernetes.io/managed-by=Helm
+                          app.kubernetes.io/name=ingress-nginx
+                          app.kubernetes.io/version=0.35.0
+                          helm.sh/chart=ingress-nginx-2.13.0
+Annotations:              <none>
+Selector:                 app.kubernetes.io/component=controller,app.kubernetes.io/instance=ingress-nginx,app.kubernetes.io/name=ingress-nginx
+Type:                     NodePort
+IP:                       10.99.185.220
+Port:                     http  80/TCP
+TargetPort:               http/TCP
+NodePort:                 http  31201/TCP
+Endpoints:                192.168.144.73:80
+Port:                     https  443/TCP
+TargetPort:               https/TCP
+NodePort:                 https  30557/TCP
+Endpoints:                192.168.144.73:443
+Session Affinity:         None
+External Traffic Policy:  Cluster
+Events:                   <none>
+
+- The above shows the details of the NodePort based service and how Node Port 31201 maps to a Pod with an IP
+  of 192.168.144.73 on port 80 for HTTP traffic.
+
+$ kubectl get pods -o wide -n ingress-nginx
+
+NAME                                        READY   STATUS      RESTARTS   AGE    IP                NODE      NOMINATED NODE   READINESS GATES
+ingress-nginx-admission-create-q67mx        0/1     Completed   0          4d3h   192.168.129.228   w-node1   <none>           <none>
+ingress-nginx-admission-patch-2hhw8         0/1     Completed   0          4d3h   192.168.144.91    w-node2   <none>           <none>
+ingress-nginx-controller-84cb46fccd-84pgt   1/1     Running     7          2d1h   192.168.144.73    w-node2   <none>           <none>
+
+- The above shows that the IP address of 192.168.144.73  corresponds to a Pod running on w-node2.  As with all other Pods, this Pod can 
+  be moved to another Node based on the current status of the cluster.  This Pod provides the NGINX Ingress implementation.
+
+- The following shows the details for the Ingress:
+
+$ kubectl describe ingress kube-service
+
+Name:             kube-service
+Namespace:        default
+Address:          192.168.56.6
+Default backend:  default-http-backend:80 (<error: endpoints "default-http-backend" not found>)
+Rules:
+  Host            Path  Backends
+  ----            ----  --------
+  kube-apis.info  
+                  /   kube-service-ci:6200   192.168.129.217:6200,192.168.138.1:6200,192.168.144.76:6200)
+Annotations:      nginx.ingress.kubernetes.io/rewrite-target: /
+Events:           <none>
+
 
 ######################################################################################
-### Exposing Services to External Clients
+### Exposing Services to External Clients Additional Notes
 ######################################################################################
 
 - This allows services-apis to be exposed so they can be accessed from outside the cluster.
@@ -2159,17 +2500,12 @@ kubia-srv    ClusterIP   10.111.189.83   <none>        80/TCP    114s   app=kubi
     - So the next step in progresses to what is called an Ingress Resource which is documented next.
 
 
-######################################################################################
-### LoadBalancer Services
-######################################################################################
 
-TODO:
 
-######################################################################################
-### Ingress Services
-######################################################################################
+[HERE][HERE][HERE][HERE][HERE][HERE][HERE][HERE][HERE][HERE][HERE]
 
-TODO:
+
+
 
 ######################################################################################
 ### Egress Services
@@ -2546,409 +2882,8 @@ TODO:
 TODO:
 
 
-######################################################################################
-Ingress Resources and Controller Configuration
-######################################################################################
 
-- The issue with creating services is that one is needed for each service-api.  
-  Each such created service will have its own static IP address (for the case of a
-  load balancer service) defining a static IP address and Port.  
-
-- Ingress is the next step in that it exposes only a single static IP address and Port that can 
-  be used to route requests to multiple internal defines service-apis running within Pods.
-
-- For this to function, an Ingress controller needs to be running within the cluster.  This is already
-  the case for most cloud hosted Kubernetes services.  But if using minikube, it must be enabled.
-
-$ minikube addons list
-$ minikube addons enable Ingress
-
------------------------------------------------
-Installing Ingress Controller (bare Metal)
------------------------------------------------
-
-- When creating a Kubernetes cluster using kubeadm, an Ingress controller is not configured by default.
-- The following URL provides a list of Ingress Controllers:
-
-  https://kubernetes.io/docs/concepts/services-networking/ingress-controllers/
-
-- For this Kubernetes Cluster, the NGINX Ingress controller will be utilized.  I found the documentation to
-  be rather lacking in this area but was able to get Ingress working for this controller.  Additional time,
-  should be taken to research in greater depth.
-
-- The Bare-Metal (Using NodePort) installation was used:
-
-  https://kubernetes.github.io/ingress-nginx/deploy/#bare-metal
-
-- This was completed by running the following:
-
-kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v0.35.0/deploy/static/provider/baremetal/deploy.yaml
-
-- After the above installs, the following shows the created resources providing the Ingress NGINX implementation.
-
-$ kubectl get pods -n ingress-nginx -o wide
-
-NAME                                        READY   STATUS      RESTARTS   AGE   IP                NODE      NOMINATED NODE   READINESS GATES
-ingress-nginx-admission-create-q67mx        0/1     Completed   0          24h   192.168.129.228   w-node1   <none>           <none>
-ingress-nginx-admission-patch-2hhw8         0/1     Completed   0          24h   192.168.144.91    w-node2   <none>           <none>
-ingress-nginx-controller-84cb46fccd-gngdf   1/1     Running     2          24h   192.168.138.31    w-node3   <none>           <none>
-
-
-- The above shoes the NGINX pod running that provides the implementation.  The other two pods with
-a status of Completed at first seems alerting as if something when wrong.  However, after doing
-some research, these are jobs that executed during the installation.  In Kubernetes, Pods running 
-one-time jobs are not deleted when done so the logs can be inspected before deletion.
-
-$ kubectl get jobs -n ingress-nginx
-
-NAME                             COMPLETIONS   DURATION   AGE
-ingress-nginx-admission-create   1/1           2s         24h
-ingress-nginx-admission-patch    1/1           2s         24h
-
-
-- The following shows the NGINX services created:
-
-$ kubectl get services -n ingress-nginx
-
-NAME                                 TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)                      AGE
-ingress-nginx-controller             NodePort    10.99.185.220   <none>        80:31201/TCP,443:30557/TCP   24h
-ingress-nginx-controller-admission   ClusterIP   10.102.236.16   <none>        443/TCP                      24h
-
-- The above shows two services.  The NodePort service is used to invoke the NGINX Ingress implementation to route
-  specific web request URLS to specific service-apis running within Pods.  Above, 31201 is listed as the Port on
-  which the ingress service listens for requests.  As with any other type of NodePort based Service, this port 
-  can be used on any of the Nodes running within the cluster to access the service:
-
-$ kubectl get nodes -o wide
-
-NAME      STATUS   ROLES    AGE     VERSION   INTERNAL-IP    EXTERNAL-IP   OS-IMAGE             KERNEL-VERSION     CONTAINER-RUNTIME
-m-node1   Ready    master   4d17h   v1.19.2   192.168.56.4   <none>        Ubuntu 20.04.1 LTS   5.4.0-48-generic   docker://19.3.11
-w-node1   Ready    <none>   4d16h   v1.19.2   192.168.56.5   <none>        Ubuntu 20.04.1 LTS   5.4.0-48-generic   docker://19.3.11
-w-node2   Ready    <none>   4d13h   v1.19.2   192.168.56.6   <none>        Ubuntu 20.04.1 LTS   5.4.0-48-generic   docker://19.3.11
-w-node3   Ready    <none>   4d13h   v1.19.2   192.168.56.7   <none>        Ubuntu 20.04.1 LTS   5.4.0-48-generic   docker://19.3.11
-
-So any of the following would work as that start of the URL to invoke services configured for access at a specific path:
-
-http://192.168.56.4:31201/
-http://192.168.56.5:31201/
-http://192.168.56.6:31201/
-http://192.168.56.7:31201/
-
-
-All the details of the Ingress NGINX service will be viewed as follows: 
-
-$ kubectl describe service -n ingress-nginx ingress-nginx-controller
-
-Name:                     ingress-nginx-controller
-Namespace:                ingress-nginx
-Labels:                   app.kubernetes.io/component=controller
-                          app.kubernetes.io/instance=ingress-nginx
-                          app.kubernetes.io/managed-by=Helm
-                          app.kubernetes.io/name=ingress-nginx
-                          app.kubernetes.io/version=0.35.0
-                          helm.sh/chart=ingress-nginx-2.13.0
-Annotations:              <none>
-Selector:                 app.kubernetes.io/component=controller,app.kubernetes.io/instance=ingress-nginx,app.kubernetes.io/name=ingress-nginx
-Type:                     NodePort
-IP:                       10.99.185.220
-Port:                     http  80/TCP
-TargetPort:               http/TCP
-NodePort:                 http  31201/TCP
-Endpoints:                192.168.138.31:80
-Port:                     https  443/TCP
-TargetPort:               https/TCP
-NodePort:                 https  30557/TCP
-Endpoints:                192.168.138.31:443
-Session Affinity:         None
-External Traffic Policy:  Cluster
-Events:                   <none>
-
-- The above shows the details of the NodePort based service and how Node Port 31201 maps to a Pod with an IP
-  of 192.168.138.31 on port 80 for HTTP traffic.
-
-- Next, the following shows the high level and details of the created Ingress resource:
-
-$ kubectl get ingress
-
-NAME              CLASS    HOSTS   ADDRESS        PORTS   AGE
-example-ingress   <none>   *       192.168.56.7   80      58m
-
-- Instead of having to use one of the specific Node IPs and Port 31201 as shown in the prior
-  section, the single IP address listed for the Ingress resource can be used as follows:
-
-curl http://192.168.56.7:31201
-
-- The following shows the details for the Ingress:
-
-$ kubectl describe ingress example-ingress
-
-Name:             example-ingress
-Namespace:        default
-Address:          192.168.56.7
-Default backend:  default-http-backend:80 (<error: endpoints "default-http-backend" not found>)
-Rules:
-  Host        Path  Backends
-  ----        ----  --------
-  *           
-              /   kubia-nodeport:8080   192.168.129.233:8080,192.168.138.30:8080,192.168.144.97:8080)
-Annotations:  nginx.ingress.kubernetes.io/rewrite-target: /$1
-Events:       <none>
-
-
-######################################################################################
-Exposing Service using Ingress Controller to External Consumers
-######################################################################################
-
-- The following will provide an example of exposing a service-api running as a container
-  within a Kubernetes Pod.
-
-- 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-- The following assumes that all service resources have been deleted but there is a ReplicaSet
-  resource created with a replica count of 3.
-
-- First a NodePort service needs to be created using a label to select the running Pods in the
-  ReplicaSet.
-
-cat lessons/ingress-node-port-service.yaml
-
-apiVersion: v1
-kind: Service
-metadata:
-  name: kubia-nodeport
-spec:
-  type: NodePort
-  ports:  
-  - port: 80
-    targetPort: 8080
-    nodePort: 30123
-  selector:
-    app: kubia
-
-$ kubectl create -f lessons/ingress-node-port-service.yaml 
-
-$ cat lessons/ingress-service.yaml 
-
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: ingress-kubia
-spec:
-  rules:
-  - host: "kubia.test.com"
-    http:
-      paths:
-      - pathType: Prefix
-        path: "/test"
-        backend:
-          service:
-            name: kubia-nodeport
-            port:
-              number: 80
-
-$ kubectl create -f ingress-service.yaml 
-
-- Next, get the IP address of the Ingress controller:
-
-$ kubectl get ingress
-
-NAME    CLASS    HOSTS               ADDRESS      PORTS   AGE
-kubia   <none>   kubia.example.com                80      3m
-
-
-nslookup kubia.test.com
-
-Name:   kubia.test.com
-Address: 69.172.200.109
-
-Add the following line to /etc/host file:
-
-69.172.200.109 kubia.test.com
-
-- Run the following several times and Ingress will route the calls to one of the
- nodes within the cluster using port 30123 which then will be routed to one of
- the node containing a Pod running the corresponding service-api.
-
-$ curl http://kubia.example.com
-
-- Above the path "/" was used.  But to add additional service-apis, multiple paths
-  can be defined, one for each node-port service (which is defined on a set of pods
-  having matching labels) then Ingress uses the path to determine the node-port 
-  service to call the dispatch the request.
-
-- Next, a service will be created to expose the service-api running within pods associated
-  with the kubia-set.
-
-$ kubectl expose replicaset kubia-set --type=LoadBalancer --port=8080
-
-$ kubectl get services
-
-NAME         TYPE           CLUSTER-IP      EXTERNAL-IP     PORT(S)          AGE
-kubernetes   ClusterIP      10.96.0.1       <none>          443/TCP          2d8h
-kubia-set    LoadBalancer   10.104.193.98   10.104.193.98   8080:32041/TCP   27s
-
-- Since the type of LoadBalancer was specified, the service will create an External-IP that
-  can be used to call the service from outside the cluster.
-
-- Running the following command several times shows how requests are load balanced and set
-  to different Node/Pods:
-
-curl 10.104.193.98:8080
-
-greco@ubuntupc:~/_dev/git/dev-blog/kubernetes$ curl 10.104.193.98:8080
-You've hit kubia-set-5ndp2
-greco@ubuntupc:~/_dev/git/dev-blog/kubernetes$ curl 10.104.193.98:8080
-You've hit kubia-set-pd6pb
-greco@ubuntupc:~/_dev/git/dev-blog/kubernetes$ curl 10.104.193.98:8080
-You've hit kubia-set-5ndp2
-greco@ubuntupc:~/_dev/git/dev-blog/kubernetes$ curl 10.104.193.98:8080
-You've hit kubia-set-5ndp2
-greco@ubuntupc:~/_dev/git/dev-blog/kubernetes$ curl 10.104.193.98:8080
-
-- Next, delete the service.
-
-$ kubectl delete service kubia-set
-
-
-
-- If the export command is not used, then the service will not be exposed to 
-  clients outside of the cluster.  This is the default behavior when creating
-  a service defined within a YAML file.
-
-apiVersion: v1
-kind: Service
-metadata:
-  name: kubia-srv
-spec:
-  ports:
-  - port: 80
-    targetPort: 8080
-  selector:
-    app: kubia
-
-$ kubectl create -f service.yaml 
-$ kubectl get services
-
-kubernetes   ClusterIP   10.96.0.1        <none>        443/TCP   17m
-kubia-srv    ClusterIP   10.103.158.206   <none>        80/TCP    22s
-
-- In the above listing, the created service only has a Cluster-IP so it can only
-  be accessed from within the cluster.
-
-- The kubectl exec command allows you to remotely run a command inside an existing container
-  of a pod.  We will do this to show that the cluster-ip above can be used within a pod's 
-  container to call the service-api.
-
-- List the Pods so one can be used.
-
-$ kubectl get pods
-
-NAME                            READY   STATUS    RESTARTS   AGE
-kubia-deploy-5d9f894958-cbsz9   1/1     Running   0          12m
-kubia-set-7cjcv                 1/1     Running   0          11m
-kubia-set-9frcf                 1/1     Running   0          11m
-kubia-set-ctzcx                 1/1     Running   0          11m
-
-kubectl exec kubia-set-ctzcx -- curl -s http://10.103.158.206
-
-- Running the above will access the service using the cluster-ip from within a container running
-  within a Pod, located on a node that is a member of the cluster.
-
-- Since this internal request was made to a service, it forwards the request to one of the Pods
-  running the service-api.
-
-- While a client service running within the cluster can use the static IP address of the service
-  to call any Pod hosting the service-api, there are better way rather than using the port directly.
-  The client service can discover the IP address using the following methods.
-
-- If a Pod is created after the service has been created, Kubernetes defines an Environment Variable
-  that the client service-api can use containing the value of the IP address.  
-
-- First delete all pods so new onces (containing the Environment Variable) will be created.
-
-$ kubectl delete pods --all
-
-- Next exec into a Pod's container and list the environment variables.
-
-$ kubectl exec kubia-set-z946b env
-
-KUBIA_SRV_SERVICE_PORT=80
-KUBIA_SRV_PORT=tcp://10.103.158.206:80
-KUBIA_SRV_PORT_80_TCP=tcp://10.103.158.206:80
-KUBIA_SRV_PORT_80_TCP_PROTO=tcp
-KUBIA_SRV_PORT_80_TCP_PORT=80
-KUBIA_SRV_PORT_80_TCP_ADDR=10.103.158.206
-
-- The other, and better option, is to use the build in DNS server.
-- This DNS service can be accessed by all Pod service-apis running in the cluster.
-- The DNS service is a member of the kube-system namespace:
-
-$ kubectl get pods --namespace=kube-system
-
-NAME                               READY   STATUS    RESTARTS   AGE
-coredns-66bff467f8-2gm85           1/1     Running   0          42m
-etcd-minikube                      1/1     Running   0          42m
-kube-apiserver-minikube            1/1     Running   0          42m
-kube-controller-manager-minikube   1/1     Running   0          42m
-kube-proxy-bhnbt                   1/1     Running   0          42m
-kube-scheduler-minikube            1/1     Running   0          42m
-storage-provisioner                1/1     Running   0          42m
-
-- Each service giets a DNS entry in the internal DNS server, and client pods that know the name
-  of the service can access it through it fully qualified domain name (FQDN) instead of of using
-  the corresponding environment variable.
-
-
-- The following is the DNS entry for the kubia-srv:
-
-kubia-srv.default.svc.cluster.local
-
-- If the calling node is within the same Namespace, then just kubia-srv can be used.
-
-- This can be tested by running bash inside one of the pod containers:
-
-$ kubectl exec -it kubia-set-z946b -- bash
-
-- Once inside the container the following will work:
-
-$ curl http://kubia-srv.default.svc.cluster.local
-# curl http://kubia-srv
-
-- If the run the commands above a few times, you will again see that the service 
-  routes to different pods belonging to the service.
-
-
-
-
-
-
-
-
-
-
-
-
-
+???????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????
 
 
 ######################################################################################
