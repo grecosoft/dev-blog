@@ -1050,6 +1050,11 @@ spec:
          ports:
           - containerPort: 6200
 
+
+- The Selector does not need to be specified.  If not specified, it will be set to the 
+  same value specified within (template/labels).
+
+
 $ kubectl create -f definitions/replication-ctl-definition.yaml
 $ kubectl get pods -o wide
 
@@ -1998,7 +2003,7 @@ ClusterIP Service Type:
 
 - Only the services that must be called by external clients should be exposed.
 
-- This section will show how to create ClusterIp service type and how it can only be accessed within
+- This section will show how to create ClusterIP service type and how it can only be accessed within
   the cluster.
 
 - When defining a Microservice based solution, all services should be considered to determine which
@@ -2140,6 +2145,11 @@ Service Endpoints
 
 - When either a NodePort or ClusterIP servce types are created, Service Endpoint
   resources are also created and used by the services.
+
+- Endpoints are located between Serivces and Pods.
+- Endpoints are a list of Pod IP Addresses and Ports exposing a serivce. 
+- Service Selectors are used to create the list of Endpoints based on the IP and Ports
+  of all Pods matching the selector.
 
 - The following will list the currently defined Service Endpoint:
 
@@ -2421,6 +2431,12 @@ Annotations:      nginx.ingress.kubernetes.io/rewrite-target: /
 Events:           <none>
 
 
+**** TLS NOTE:
+  The communication between the client anbd the ingress-controller is encripted (assuming you setup TLS), where as the communication between the controller and the backend pod isn't.  
+  The application running in the pod doesn't need to support TLS.  For example, if the pod runs a web server, it can accept only HTTP traffic and let the Ingress controller take care 
+  of everything related to TLS.
+****
+
 ######################################################################################
 ### Exposing Services to External Clients Additional Notes
 ######################################################################################
@@ -2503,6 +2519,99 @@ Events:           <none>
       need to be create for each and every microservice.  
 
     - So the next step in progresses to what is called an Ingress Resource which is documented next.
+
+
+######################################################################################
+### Connecting to Services Outside the Cluster
+######################################################################################
+
+- This is the case when a service-api, running within a Pod contained within the cluster,
+  needs to call another Api that is located outside of the Cluster.
+
+- As mentioned within the Endpoints section, Services are not directly tied to Pods but are
+  indirectly related by maintaining a list of Endpoints (IP/Port) for the Pods providing the
+  serivce API.  This list is build by finding all Pods having labels matching the Service's 
+  selector.
+
+- Given this, Endpoints can be manually created to serivce-apis outside of the cluster and
+  assocated with a serivce.  This provides a single place where the external IP address and
+  port can be configured.
+
+- This is accomplished by defining both a Service and Endpoint resources having the 
+  same names.   
+
+- Pods created after the Service can reference the external serivce using the 
+  created environment variable.
+
+$ cat definitions/external-cluster-endpoints.yaml 
+
+  apiVersion: v1
+  kind: Endpoints
+  metadata:
+    name: external-service
+  subsets:
+    - addresses:  
+      - ip: 172.217.2.110 
+      - ip: 205.251.242.103
+      ports:
+      - port: 80
+     
+
+$ kubectl create -f  definitions/external-cluster-endpoints.yaml 
+
+
+$ cat definitions/external-cluster-service.yaml 
+
+  apiVersion: v1
+  kind: Service
+  metadata:
+    name: external-service
+  spec:
+    ports:
+    - port: 80
+
+$ kubectl create -f definitions/external-cluster-service.yaml
+
+** NOTE:  The IP address for the external-services endpoints is Google and Amazon.
+          This is probably not the best of examples... but good enough for testing.
+
+
+- List the serivces and the associated endpoints and not the ClientIP assigned to the serivce:
+
+$ kubectl get services
+
+NAME               TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)   AGE
+external-service   ClusterIP   10.98.228.33   <none>        80/TCP    91s
+
+
+$ kubectl get endpoints
+
+NAME               ENDPOINTS                             AGE
+external-service   172.217.2.110:80,205.251.242.103:80   108s
+
+
+- Next, delete and recreate the client Pod so the above serivce will be available 
+  as an environment variable:
+
+$ kubectl delete pod client
+$ kubectl run client --image blgreco72dev/kube-tools
+
+- Next execute a bash session within the Container running within the client Pod:
+
+$ kubectl exec -it client --bash
+
+- List the environment variables from the bash command line:
+  # env
+
+    EXTERNAL_SERVICE_PORT_80_TCP=tcp://10.98.228.33:80
+    EXTERNAL_SERVICE_SERVICE_HOST=10.98.228.33
+
+- Run the following command several time and since HTTPS is not being used a HTTP 301
+  will be returned from both Google and Amazon randomaly as one on the IPs are choosen.
+  Of course, this example does not really make since given that multple IP addresses
+  should point to different enpoints providing the same service!!!
+
+  # curl 10.98.228.33
 
 
 ######################################################################################
@@ -2867,61 +2976,14 @@ Events:
  
  -------------------------------------------------------------------------------------------------------
 
-
-
-
-
-
-
-
-[HERE][HERE][HERE][HERE][HERE][HERE][HERE][HERE][HERE][HERE][HERE]
-
-
-
-
 ######################################################################################
-### Egress Services
+### Ready Checks
 ######################################################################################
 
-TODO:
-
-######################################################################################
-### DNS/Event Variables for Services
-######################################################################################
-
-TODO:
-
-######################################################################################
-### Deployments
-######################################################################################
-
-TODO:
-
-######################################################################################
-### Additional Kubernetes Cluster/Controllers/Services/Pods Notes
-######################################################################################
-
-- The role of the ReplicationController is to replicate pods and to make sure they
-  remain running.  ReplicationController resource are not created very often are 
-  a ReplicaSet (a type of ReplicationController) is commonly used.  When the deployment
-  above was created, it created an associated ReplicaSet.
-
-- If a pod crashes or the node is stopped, this is detected by the ReplicaSet which
-  schedules another pod with the Scheduler to be created.  The Schedule determines 
-  the best worker node for the pod.  The Kubelet process running on the node is called
-  by the scheduler.  The Kubelet process then pulls the image and then creates the container
-  and associated pod. 
-
-- When the prod is relocated to a new node, the newly created pod will have a new IP address.
-- The IP address of the LoadBalancer Service is static (for the life of the service).  The 
-  LoadBalancer Service keeps track of the nodes where the exposed pods are running and forwards
-  any requests to one of the nodes where the pod is running.
-
-* Services represent a static location for a group of one or more pods that all provide 
-  the same service.
-
-
-
+- As soon as a pod is crated, Kubernetes assumes it is ready to receive connections.
+- However, this might not alway be the case.
+- A pod can signal when it is ready.
+- This is mostly needed during container service-api startup.
 
 ######################################################################################
 ### DaemonSet
@@ -2936,28 +2998,26 @@ TODO:
 
 - The following is a definition for a DaemonSet:
 
-$ cat lessons/daemon-set.ymal 
+$ cat definitions/deamonset-definition.yaml 
 
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
-  name: daemon-test
+  name: daemon-kube-service
 spec:
   selector:
     matchLabels:
-      app: daemon-test
+      app: service-api
   template:
     metadata:
       labels:
-        app: daemon-test
+        app: service-api
     spec:
-      nodeSelector:
-        disk: ssd
       containers:
       - name: main
-        image: blgreco72dev/kubia
+        image: blgreco72dev/kube-service
 
-$  kubectl create -f lessons/daemon-set.ymal 
+$ kubectl create -f definitions/deamonset-definition.yaml 
 
 - At this point, zero Pods will have been created.  Currently there are no nodes
   labeled with drive: ssd
@@ -3004,11 +3064,9 @@ daemon-test-rclsc   1/1     Terminating   0          3m6s
 ######################################################################################
 ### Jobs
 ######################################################################################
+
 - The other controller types create a number of Pods and makes sure they
   are always running to match the number of specified replica.
-
-- Jobs create a Pod for executing a container process.  After the process completes,
-  the Pod is removed.
 
 - If a node goes down when a Job is running, a Pod will be created on another node to continue
   until the job successfully completes.
@@ -3032,6 +3090,10 @@ spec:
 
 
 - After the job completes, the Pod will remain.  This allows you to check the logs if needed.
+- However, the Pod will be deleted if the Job that created it is deleted.
+
+- Jobs can be specified to create more than one job instance and they can be either executed
+  sequentially or in parallel.
 
 
 $ kubectl get pods
@@ -3046,25 +3108,63 @@ batch-job-tkcl6     0/1     Completed   0          2m35s
 ----------------------------------------
 CronJob
 ----------------------------------------
-- These are similar to Jobs but they can be scheduled to run on an interval.
-
-
-
-
-
-
+- These are similar to Jobs but they can be scheduled to run on an interval 
+  and at a specific time in the future.
 
 
 ######################################################################################
-### Ready Checks
+### Deployments
 ######################################################################################
 
-- As soon as a pod is crated, Kubernetes assumes it is ready to receive connections.
-- However, this might not alway be the case.
-- A pod can signal when it is ready.
-- This is mostly needed during container service-api startup.
+
+
+
+
+
+
+[HERE][HERE][HERE][HERE][HERE][HERE][HERE][HERE][HERE][HERE][HERE]
+
+
 
 TODO:
+
+######################################################################################
+### Additional Kubernetes Cluster/Controllers/Services/Pods Notes
+######################################################################################
+
+- The role of the ReplicationController is to replicate pods and to make sure they
+  remain running.  ReplicationController resource are not created very often are 
+  a ReplicaSet (a type of ReplicationController) is commonly used.  When the deployment
+  above was created, it created an associated ReplicaSet.
+
+- If a pod crashes or the node is stopped, this is detected by the ReplicaSet which
+  schedules another pod with the Scheduler to be created.  The Schedule determines 
+  the best worker node for the pod.  The Kubelet process running on the node is called
+  by the scheduler.  The Kubelet process then pulls the image and then creates the container
+  and associated pod. 
+
+- When the prod is relocated to a new node, the newly created pod will have a new IP address.
+- The IP address of the LoadBalancer Service is static (for the life of the service).  The 
+  LoadBalancer Service keeps track of the nodes where the exposed pods are running and forwards
+  any requests to one of the nodes where the pod is running.
+
+* Services represent a static location for a group of one or more pods that all provide 
+  the same service.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
