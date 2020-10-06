@@ -1,18 +1,20 @@
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Net;
-using System.Net.Sockets;
+using Kube.Service.App;
+using Kube.Service.Domain;
 using Microsoft.AspNetCore.Mvc;
 
 [ApiController, Route("api/pod")]
 public class PodController : ControllerBase
 {
     private readonly MicroserviceSettings _settings;
+    private readonly ILivenessProbe _livenessProbe;
 
-    public PodController(MicroserviceSettings settings)
+    public PodController(
+        MicroserviceSettings settings,
+        ILivenessProbe livenessProbe)
     {
         _settings = settings;
+        _livenessProbe = livenessProbe;
     }
 
     [HttpGet("host-name")]
@@ -26,4 +28,21 @@ public class PodController : ControllerBase
     [HttpGet("app-settings")]
     public IActionResult GetAppSettings() => Ok(_settings);
 
+    [HttpGet("health-check")]
+    public IActionResult GetHealthCheck()
+    {
+        if (_livenessProbe.IsCurrentStateHealthy())
+        {
+            return Ok();
+        }
+
+        return NotFound();
+    }
+
+    [HttpPost("toggle-health")]
+    public IActionResult ToggleHealthStatus() 
+    {
+        _livenessProbe.ToggleState();
+        return Ok();
+    }
 }

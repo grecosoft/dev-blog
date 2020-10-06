@@ -430,6 +430,9 @@ $ kubectl run kube-service --image=blgreco72dev/kube-service --port=6200
 
 - Each Pod has its own IP address and host name.
 - You cannot list containers but the current pods can be listed.
+- All Pods within a Cluster are all attached to a shared network and can communicate with each other 
+  using the IP address assigned to each Pod.  This also hold true if the Pods are on different nodes.
+  This is implemented using a software based Pod network installed when building the cluster.
 
 $ kubectl get pods -o wide
 
@@ -842,6 +845,8 @@ $ kubectl get pods -o wide
 NAME              READY   STATUS    RESTARTS   AGE   IP                NODE      NOMINATED NODE   READINESS GATES
 client            1/1     Running   4          16h   192.168.144.103   w-node2   <none>           <none>
 kube-service      1/1     Running   0          53s   192.168.129.246   w-node1   <none>           <none>
+
+- The metadata section contains the resource name, labels, and namespace.
 
 ---------------------------------------------------------------------------------------------------------------------
 
@@ -2500,55 +2505,6 @@ Events:           <none>
     - So the next step in progresses to what is called an Ingress Resource which is documented next.
 
 
-
-
-[HERE][HERE][HERE][HERE][HERE][HERE][HERE][HERE][HERE][HERE][HERE]
-
-
-
-
-######################################################################################
-### Egress Services
-######################################################################################
-
-TODO:
-
-######################################################################################
-### DNS/Event Variables for Services
-######################################################################################
-
-TODO:
-
-######################################################################################
-### Deployments
-######################################################################################
-
-TODO:
-
-######################################################################################
-### Additional Kubernetes Cluster/Controllers/Services/Pods Notes
-######################################################################################
-
-- The role of the ReplicationController is to replicate pods and to make sure they
-  remain running.  ReplicationController resource are not created very often are 
-  a ReplicaSet (a type of ReplicationController) is commonly used.  When the deployment
-  above was created, it created an associated ReplicaSet.
-
-- If a pod crashes or the node is stopped, this is detected by the ReplicaSet which
-  schedules another pod with the Scheduler to be created.  The Schedule determines 
-  the best worker node for the pod.  The Kubelet process running on the node is called
-  by the scheduler.  The Kubelet process then pulls the image and then creates the container
-  and associated pod. 
-
-- When the prod is relocated to a new node, the newly created pod will have a new IP address.
-- The IP address of the LoadBalancer Service is static (for the life of the service).  The 
-  LoadBalancer Service keeps track of the nodes where the exposed pods are running and forwards
-  any requests to one of the nodes where the pod is running.
-
-* Services represent a static location for a group of one or more pods that all provide 
-  the same service.
-
-
 ######################################################################################
 ### Labels
 ######################################################################################
@@ -2562,48 +2518,58 @@ TODO:
 - They are key/value parts associated with a resource.  The other resources,
   can reference all tagged resources using a label selector.
 
-touch lessons/labeled-pod.yaml
+$ cat definitions/labeled-pod-definition.yaml 
 
 apiVersion: v1
 kind: Pod
 metadata:
-  name: kubia-pod-labels
+  name: labeled-kube-service
   labels:
-    app: receipts
+    app:  accounting
+    area: invoices
     env: prod
 spec:
   containers:
-  - image: blgreco72dev/kubia
-    name: kubia
+  - image: blgreco72dev/kube-service
+    name: kube-service
     ports:
-    - containerPort: 8080
+    - containerPort: 6200
       protocol: TCP
 
-kubectl create -f lessons/labeled-pod.yaml
-
+$ kubectl create -f definitions/labeled-pod-definition.yaml 
 
 - The following can be used to view a pod's labels:
 
-kubectl get pods --show-labels
+$ kubectl get pods --show-labels
 
-NAME               READY   STATUS    RESTARTS   AGE   LABELS
-kubia-pod-labels   1/1     Running   0          66s   app=receipts,env=prod
+NAME                  READY   STATUS    RESTARTS   AGE   LABELS
+client                1/1     Running   2          29h   run=client
+labled-kube-service   1/1     Running   0          58s   app=accounting,area=invoices,env=prod
 
-- Labels can be added and updated on pods:
+- The following will update and existing label.
 
-$ kubectl label pod kubia-pod-labels env=test --overwrite
+$ kubectl label pod labled-kube-service env=test --overwrite
+$ kubectl get pods --show-labels
 
-NAME               READY   STATUS    RESTARTS   AGE    LABELS
-kubia-pod-labels   1/1     Running   0          110s   app=receipts,env=test
+NAME                  READY   STATUS    RESTARTS   AGE    LABELS
+client                1/1     Running   2          29h    run=client
+labled-kube-service   1/1     Running   0          2m1s   app=accounting,area=invoices,env=test
 
-$ kubectl label pod kubia-pod-labels version=2.0.4 
+- The following will add an new take.
 
-NAME               READY   STATUS    RESTARTS   AGE     LABELS
-kubia-pod-labels   1/1     Running   0          2m38s   app=receipts,env=test,version=2.0.4
+$ kubectl label pod labled-kube-service version=2.0.4 
+$ kubectl get pods --show-labels
+
+NAME                  READY   STATUS    RESTARTS   AGE     LABELS
+client                1/1     Running   2          29h     run=client
+labled-kube-service   1/1     Running   0          3m54s   app=accounting,area=invoices,env=test,version=2.0.4
 
 - Resources can be filtered based on their assigned labels:
 
-$ kubectl get pods -l env=test --show-labels
+$ kubectl get pods -l env=test 
+
+NAME                  READY   STATUS    RESTARTS   AGE
+labled-kube-service   1/1     Running   0          4m26s
 
 - Multiple selectors can be specified within a filter by separating each by a comma.
 
@@ -2657,84 +2623,304 @@ $ kubectl get nodes -l kubernetes.io/arch=amd64
 
 - Annotations can also be added after the resource is created:
 
-$ kubectl annotate pod kubia-pod-labels somecompany.com/build="144"
+$ kubectl annotate pod labled-kube-service somecompany.com/build="144"
 
 - A pod's annotations can be seen as follows:
 
-$ kubectl describe pod kubia-pod-labels
+$ kubectl describe pod labled-kube-service 
 
-Annotations:  cni.projectcalico.org/podIP: 192.168.138.14/32
-              cni.projectcalico.org/podIPs: 192.168.138.14/32
+Annotations:  cni.projectcalico.org/podIP: 192.168.129.222/32
+              cni.projectcalico.org/podIPs: 192.168.129.222/32
               somecompany.com/build: 144
 Status:       Running
-IP:           192.168.138.14
+IP:           192.168.129.222
+IPs:
+  IP:  192.168.129.222
 
 
 ######################################################################################
 ### Namespaces
 ######################################################################################
 
-- Namespaces are used to associate a name with a group of resources.
+- Lables can be used to organize and classify Pods.  However, labels will often be used
+  across several pods that might might otherwise not be related.  
 
-- The following will add another label to the kubia-prod-labels pod so both pods will have
-  a set of labels with the same set of key/value pairs.
+- Namespaces can be used to group a set of pods.
+- Pods within a Namespace can be operated on at the sametime.
+- Resource names only need to be unique within a namespace.
 
-$ kubectl label pod kubia-pod app=receipt
+- The following will list all defined namespaces:
 
-- The following will be used to define a namespace to group all "test" environment "receipt" pods 
-  from which a given solution is comprised.
+  $ kubectl get namespaces
 
-- Use the next command to list all defined namespace within a cluster:
 
-$ kubectl get namespaces
+- If a namespace is not specified when operating on pods, they are always scoped to the 
+  "default" namespace.  For example, when listing Pods without specifying a namespace,
+  only the pods within the default namespace will be listed.
 
-- If not otherwise specified, resources are associated with the default namespace.  Also, only
-  resources with the default namespace are returned when listing resources if not specified.
+- The following can be used to list Pods scoped to a specific namespace:
 
-- Namespaces can be created using yaml files or from the command line.
+NAME                                        READY   STATUS      RESTARTS   AGE
+ingress-nginx-admission-create-q67mx        0/1     Completed   0          5d9h
+ingress-nginx-admission-patch-2hhw8         0/1     Completed   0          5d9h
+ingress-nginx-controller-84cb46fccd-84pgt   1/1     Running     9          3d7h
+
+
+- Like other resources, namespace can be created at the command line or by using an YAML definition file.
+
+- The following will create a new namespace using kubeclt:
+
+  $ kubectl create namespace application-one
+  $ kubectl get namespaces
+
+  NAME              STATUS   AGE
+  application-one   Active   34s
+  calico-system     Active   9d
+
+$ cat definitions/namespaced-pod.yaml 
 
 apiVersion: v1
-kind: Namespace
+kind: Pod
 metadata:
-  name: receipt-solution
+  name: namespaced-kube-service
+  labels:
+    app:  accounting
+    area: invoices
+    env: prod
+  namespace: application-one
+spec:
+  containers:
+  - image: blgreco72dev/kube-service
+    name: kube-service
+    ports:
+    - containerPort: 6200
+      protocol: TCP
 
+$ kubectl create -f  definitions/namespaced-pod.yaml 
+$ kubectl get pods -n application-one
 
-$ kubectl create -f pod-namespace.yml
+NAME                      READY   STATUS    RESTARTS   AGE
+namespaced-kube-service   1/1     Running   0          48s
 
-$ kubectl create namespace payment-solution
+- Namespaces (these are not Linux namespace) do not provide any type of Pod isolation.  
+  A Pod running in one namespace can still communicate with a pod in another.
 
-
-- Namespaces can be specified within a resource definition file by adding a "namespace" property
-  to the "metadata" section.  Or the --namespace argument can be specified when calling kubectl
-  create when applying a yaml file.
-
-- Name spaces do not provide any type of isolation.  For example, pods assigned to different 
-  namespaces can still communicate within the cluster.
+----------------------------------------------------------------------------------------
 
 - Labels and Namespaces can be used to apply an operation to multiple resources at the same time.
 - The following will delete all nodes defining a label with a specific value:
 
-$ kubectl delete pods -l app=receipt
+$ kubectl delete pods -l area=invoices
+
+- Not that the following deleted any pods within the "default" namespace with the specified label.
+- The Pod within the "application-one" namespace was not deleted even though it also has the same
+  label.
 
 - Also, all Pods contained within a namespace can be deleted by deleting the namespace.  This will
   also delete the namespace.
 
-$ kubectl delete namespace receipt-solution
+$ kubectl delete namespace application-one
 
 - If you want to keep the namespace and just want to delete all Pods within the namespace, 
   the following command can be used:
 
-$ kubectl delete pods --all
+$ kubectl delete pods -n application-one --all
 
-- The above command will delete all resources contained within the current namespace.
+- The above command will delete all resources contained within the "application-one" namespace.
 
 The current namespace to which all commands will apply can be set as follows:
 
-$ kubectl config set-context --current --namespace=receipt-solution
+$ kubectl config set-context --current --namespace=application-one
 
 - The following command can be used to view the current context:
 
 $ kubectl config current-context
+
+
+######################################################################################
+### Liveness Probes
+######################################################################################
+
+- Called by Kubernetes Controllers to determine if the service-api running within
+  a pod is considered to be healthy.  
+
+- If determined that the service-api is no longer healthy, Kubernetes will recreate 
+  another Pod.  If there is not a Liveness Probe, the only time the Pod would be
+  recreated would be if there was a resource issue on the Pod's current node or if
+  the Node goes offline.
+
+- $ cat definitions/liveness-prob-definition.yaml 
+
+
+apiVersion: apps/v1
+kind: ReplicaSet
+metadata:
+  name: kube-service-rs
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: kube-srv
+  template:
+    metadata:
+      labels:
+        app: kube-srv
+    spec:
+      containers:
+      - name: kube-srv-container
+        image: blgreco72dev/kube-service
+        livenessProbe:
+          httpGet:
+            path: /api/pod/health-check
+            port: 6200
+        ports:
+        - containerPort: 6200
+
+$ kubectl create -f definitions/liveness-prob-definition.yaml 
+
+- The above specifies that the route /api/pod/health-check should be called to determine
+  if the pod is healthy.  
+
+$ kube get pods -o wide
+
+NAME                    READY   STATUS    RESTARTS   AGE   IP                NODE      NOMINATED NODE   READINESS GATES
+client                  1/1     Running   5          31h   192.168.138.5     w-node3   <none>           <none>
+kube-service-rs-fmdvh   1/1     Running   0          9s    192.168.129.227   w-node1   <none>           <none>
+kube-service-rs-hw5gc   1/1     Running   0          9s    192.168.138.10    w-node3   <none>           <none>
+kube-service-rs-p46zc   1/1     Running   0          9s    192.168.144.84    w-node2   <none>           <none>
+
+
+- Instead of creating a Serivce, Port Forwarding will be used:
+
+  $ kubectl port-forward kube-service-rs-hw5gc  8888:6200
+
+- Within a another terminal widow, run the following:
+
+  $ watch kubectl get pods
+
+- Next, in a sparate window, call the above heath-check endpoint to test that the call works:
+
+curl -v http://localhost:8888/api/pod/health-check 
+
+- The healh-check API will return a HTTP 200 if it is health and a 404 if not.
+- The service also provides another route that can be called to toggle the current state 
+  of its health.
+
+$ curl -X POST -v -d "" http://localhost:8888/api/pod/toggle-health
+
+- The the above POST is executed, you will see the number of Restarts increase after a short
+  period of time.  After the pod is restarted, the the health status will reference back to being healthy.
+
+NAME                    READY   STATUS    RESTARTS   AGE
+client                  1/1     Running   5          32h
+kube-service-rs-fmdvh   1/1     Running   0          15m
+kube-service-rs-hw5gc   1/1     Running   3          15m
+kube-service-rs-p46zc   1/1     Running   0          15m
+
+- The above shows the results after toggling the health status 3 time.  Also note that the name of the
+  pod is still the same since Kubernetes is recreating the container running within the Pod.  The kubelet
+  process running on each Node is who calls the Probe and not the Kubernetes Control Plane runnin on the
+  Master Nodes.
+
+- Running the following command will show within the Events listing that the Pod was unhealthy:
+
+$ kubectl describe pod kube-service-rs-hw5gc
+
+
+Liveness:       http-get http://:6200/api/pod/health-check delay=0s timeout=1s period=10s #success=1 #failure=3
+
+...
+
+Events:
+  Type     Reason     Age                  From               Message
+  ----     ------     ----                 ----               -------
+  Normal   Scheduled  21m                  default-scheduler  Successfully assigned default/kube-service-rs-hw5gc to w-node3
+  Normal   Pulled     21m                  kubelet, w-node3   Successfully pulled image "blgreco72dev/kube-service" in 483.360985ms
+  Normal   Pulled     12m                  kubelet, w-node3   Successfully pulled image "blgreco72dev/kube-service" in 545.058789ms
+  Normal   Pulled     8m3s                 kubelet, w-node3   Successfully pulled image "blgreco72dev/kube-service" in 529.053588ms
+  Warning  Unhealthy  6m24s (x9 over 13m)  kubelet, w-node3   Liveness probe failed: HTTP probe failed with statuscode: 404
+  Normal   Killing    6m24s (x3 over 12m)  kubelet, w-node3   Container kube-srv-container failed liveness probe, will be restarted
+  Normal   Pulling    6m24s (x4 over 21m)  kubelet, w-node3   Pulling image "blgreco72dev/kube-service"
+  Normal   Created    6m23s (x4 over 21m)  kubelet, w-node3   Created container kube-srv-container
+  Normal   Started    6m23s (x4 over 21m)  kubelet, w-node3   Started container kube-srv-container
+  Normal   Pulled     6m23s                kubelet, w-node3   Successfully pulled image "blgreco72dev/kube-service" in 488.67478ms
+
+
+  - Also included within the describe results is additional information about the probe:
+      - delay: the probe will be called as soon as the container is ready.
+      - timeout:  the probe must return a response within 1 second.
+      - period: the prove is called every 10 seconds.
+
+  - These parameters can also be defined when defining the liveness probe for a Pod.
+
+  *** You should always specify an inital delay so that the Container running the serivce-api has enough time to start 
+      so it can respond to health-check calls.  If the service-api cannot repond, then the Pod will be considered unhealthy
+      after the number of failures is greather than a given number of trys.
+
+  - The health endpoint should not require authentication.
+
+  - The implemention of the health-check should base the outcome on its current state and not the state of other service-apis 
+    it calls.  If a service-api cannot be contacted on which it is dependent, that other serivce's Pod should indicate that it
+    is not healthy so its Container is recreated.
+
+  - Probes should execute quickly.
+ 
+ -------------------------------------------------------------------------------------------------------
+
+
+
+
+
+
+
+
+[HERE][HERE][HERE][HERE][HERE][HERE][HERE][HERE][HERE][HERE][HERE]
+
+
+
+
+######################################################################################
+### Egress Services
+######################################################################################
+
+TODO:
+
+######################################################################################
+### DNS/Event Variables for Services
+######################################################################################
+
+TODO:
+
+######################################################################################
+### Deployments
+######################################################################################
+
+TODO:
+
+######################################################################################
+### Additional Kubernetes Cluster/Controllers/Services/Pods Notes
+######################################################################################
+
+- The role of the ReplicationController is to replicate pods and to make sure they
+  remain running.  ReplicationController resource are not created very often are 
+  a ReplicaSet (a type of ReplicationController) is commonly used.  When the deployment
+  above was created, it created an associated ReplicaSet.
+
+- If a pod crashes or the node is stopped, this is detected by the ReplicaSet which
+  schedules another pod with the Scheduler to be created.  The Schedule determines 
+  the best worker node for the pod.  The Kubelet process running on the node is called
+  by the scheduler.  The Kubelet process then pulls the image and then creates the container
+  and associated pod. 
+
+- When the prod is relocated to a new node, the newly created pod will have a new IP address.
+- The IP address of the LoadBalancer Service is static (for the life of the service).  The 
+  LoadBalancer Service keeps track of the nodes where the exposed pods are running and forwards
+  any requests to one of the nodes where the pod is running.
+
+* Services represent a static location for a group of one or more pods that all provide 
+  the same service.
+
+
 
 
 ######################################################################################
@@ -2864,11 +3050,10 @@ CronJob
 
 
 
-######################################################################################
-### Heath Checks
-######################################################################################
 
-TODO:
+
+
+
 
 ######################################################################################
 ### Ready Checks

@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: namespaced-kube-service
+  labels:
+    app:  accounting
+    area: invoices
+    env: prod
+  namespace: application-one
+spec:
+  containers:
+  - image: blgreco72dev/kube-service
+    name: kube-service
+    ports:
+    - containerPort: 6200
+      protocol: TCP
+
