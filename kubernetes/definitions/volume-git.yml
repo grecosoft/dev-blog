@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: kube-service
+spec:
+  containers:
+  - image: blgreco72dev/kube-service
+    name: kube-srv
+    volumeMounts:
+    - name: repo-data
+      mountPath: /data/git/repo
+    ports:
+    - containerPort: 6200
+      protocol: TCP
+  volumes:
+  - name: repo-data
+    gitRepo:
+      repository: https://github.com/grecosoft/dev-blog.git
+      revision: master
+      directory: .

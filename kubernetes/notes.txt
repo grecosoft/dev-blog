@@ -3113,8 +3113,289 @@ CronJob
 
 
 ######################################################################################
+### Volumes
+######################################################################################
+
+- Each Container within a Pod has an isolated file system based on the image from which it was created.
+- Only the Container can write it its one file system.  When the Container is recreated, any local
+  change are lost.
+
+- Volumes allow Container to persist data between restarts.  Volumes have the same lifecycle as
+  Pods and are created and deleted at the same time the Pod is.  However, based on the type of
+  Volume, their lifecycle can extend that of the Pod.
+
+- Volumes and declared within a Pod's template definition.
+
+- Volumes can be accessed and shared by all Containers running within the same Pod.
+- Volumes are mounted to local directories within the container.
+- By mounting the same Volume between Containers, they can access the same data.
+
+- If a volume start out empty and not initialized from existing files, then the "emptyDir"
+  volume type can be used.  
+
+- There are the other common types:
+    - hostPath: Allows mapping a volume to an existing directory located within a directory on the worker node.
+    - gitRepo: When a Pod is created, it can have a volume based on pulling files from GitHub.
+    - gcePersistentDisk: Cloud provider storage
+    - configMap, secret, downloadAPI - Volumes defined to access information defined within Kubernetes.
+    - persistentVolumeClaim - Allows the use of pre-provisioned persistent storage.
+
+-----------------------------------------------------------------------------------------
+
+- The example Microservice will be extended to write files to a Volume.
+
+$ cat definitions/volume-emptyfile.yaml 
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: kube-service
+spec:
+  containers:
+  - image: blgreco72dev/kube-service
+    name: kube-srv
+    volumeMounts:
+    - name: received-data
+      mountPath: /data/files
+    ports:
+    - containerPort: 6200
+      protocol: TCP
+  volumes:
+  - name: received-data
+    emptyDir: {}
+
+$ kubectl create -f definitions/volume-emptyfile.yaml 
+$ kubectl port-forward kube-service  8888:6200
+
+- Next, requests will be made that will write data to files contained within the volume and tested
+  by making another call returing an array of the contents for all files.
+
+$ curl -X POST -v  -d "" http://localhost:8888/api/volume/add-file?value=test-data1
+$ curl -X POST -v  -d "" http://localhost:8888/api/volume/add-file?value=test-data2
+$ curl -X POST -v  -d "" http://localhost:8888/api/volume/add-file?value=test-data3
+
+$ curl  http://localhost:8888/api/volume/file-data
+
+["test-data1","test-data3","test-data2","Some"]
+
+- Next, restart the Node on which the Pod is located and validate that the data still exits.
+
+$ kubectl get pods -o wide
+
+NAME           READY   STATUS    RESTARTS   AGE     IP                NODE      NOMINATED NODE   READINESS GATES
+client         1/1     Running   4          17h     192.168.138.19    w-node3   <none>           <none>
+kube-service   1/1     Running   0          6m26s   192.168.129.234   w-node1   <none>           <none>
+
+- In this case, restart w-node1.  After the node is fully started, check that the data still exists:
+
+$ kubectl port-forward kube-service  8888:6200    (Note: stop the current running port-forward and re-execute)
+$ curl  http://localhost:8888/api/volume/file-data
+
+["test-data1","test-data3","test-data2","Some"]
+
+---------------------------------------------------------------------------------------------
+
+- Next will will dig deep to see where the data is stored...
+- Run the following to get the ID of the container
+
+$ kubectl get pods -o custom-columns=PodName:.metadata.name,PodUID:.metadata.uid
+
+PodName        PodUID
+client         75cc3336-b8c2-4414-9dee-36cba2584978
+kube-service   eb9729eb-0a71-4842-a3c5-6f118e82486e
+
+- Since the Pod is running on w-node1, ssh into this worker node and run as the root:
+
+$ ssh w-node1@192.168.56.5
+    sudo -1
+
+- Then navigate to the following directory based on the ID of the Pod:
+
+$ cd /var/lib/kubelet/pods/eb9729eb-0a71-4842-a3c5-6f118e82486e/volumes/kubernetes.io~empty-dir/received-data
+$ ls
+
+    tmp9x31zW.tmp  tmpMenmZL.tmp  tmpNjRHoj.tmp  tmpVuOJaT.tmp
+
+$ cat tmp9x31zW.tmp 
+    test-data2
+
+---------------------------------------------------------------------------------------------
+
+- For better performance, a volume can be configured to write to memory:
+
+$ cat definitions/volume-memory.yaml 
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: kube-service
+spec:
+  containers:
+  - image: blgreco72dev/kube-service
+    name: kube-srv
+    volumeMounts:
+    - name: received-data
+      mountPath: /data/files
+    ports:
+    - containerPort: 6200
+      protocol: TCP
+  volumes:
+  - name: received-data
+    emptyDir:
+      medium: Memory
+
+
+$ kubectl create -f definitions/volume-memory.yaml 
+$ kubectl port-forward kube-service  8888:6200    (Note: stop the current running port-forward and re-execute)
+
+$ curl -X POST -v  -d "" http://localhost:8888/api/volume/add-file?value=test-data1
+$ curl -X POST -v  -d "" http://localhost:8888/api/volume/add-file?value=test-data2
+
+$ curl http://localhost:8888/api/volume/file-data
+
+$ kubectl delete pod kube-service
+
+------------------------------------------------------------------------------------------------------------------
+
+- The gitRepo volumn type can be used to clone a Git repository.
+
+$ cat definitions/volume-git.yml 
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: kube-service
+spec:
+  containers:
+  - image: blgreco72dev/kube-service
+    name: kube-srv
+    volumeMounts:
+    - name: repo-data
+      mountPath: /data/git/repo
+    ports:
+    - containerPort: 6200
+      protocol: TCP
+  volumes:
+  - name: repo-data
+    gitRepo:
+      repository: https://github.com/grecosoft/dev-blog.git
+      revision: master
+      directory: .
+
+$ kubectl create -f definitions/volume-git.yml 
+$ kubectl port-forward kube-service  8888:6200    (Note: stop the current running port-forward and re-execute)
+
+$ curl http://localhost:8888/api/volume/git-repo?file=kube-data.dat
+
+     ["This file was loaded from a volumn cloned from Git!!!!"]
+
+$ kubectl delete pod kube-service
+
+-----------------------------------------------------------------------------------------
+
+- The hostPath Volume type references a directory located on the Node that the Pod is running.
+- The contents of the Volumn will be available between Pod creations.
+
+- However, this type type of Volume should really only be used for reading static data stored
+  on the Host - for example log files or system configurations.  
+
+- Since a Pod with state could save data to a file on one Node but then be created on another 
+  Node where the data would not be present.
+
+$ cat definitions/volume-host.yaml 
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: kube-service
+spec:
+  containers:
+  - image: blgreco72dev/kube-service
+    name: kube-srv
+    volumeMounts:
+    - name: host-data
+      mountPath: /host/settings
+    ports:
+    - containerPort: 6200
+      protocol: TCP
+  nodeSelector:
+    kubernetes.io/hostname: w-node3    
+  volumes:
+  - name: host-data
+    hostPath:
+      path: /home/w-node3/settings
+
+$ kube create -f definitions/volume-host.yaml 
+$ kubectl port-forward kube-service 8888:6200
+
+- Note that the above is specifying that this Pod should run on w-node3 so we can assure
+  the data will be present for this example.
+
+- ssh into w-node3 and complete the following:
+  $ ssh w-node3@192.168.56.7
+  $ mkdir settings
+  $ cd settings
+  $ touch keyvalue.dat
+  $ nano keyvalue.dat
+
+  - Enter and save the following:
+
+  a=100
+  b=99
+  c=18
+  d=11
+
+- Make calls to the serivce-api to test that the host data can be read:
+
+$ curl -v http://localhost:8888/api/volume/host-data?file=keyvalue.dat
+    ["a=100","b=99","c=18","d=11"]
+
+- If you delte and re-create the Pod, the data will still be available.
+
+
+######################################################################################
+### Persistent Storage
+######################################################################################
+
+- Enables data to be saved that can be accessed by a Pod's container regardless of the node on which it is running.
+- Network storage can be used and all of the Cloud providers have such a service.
+- This allows storing the data external to the Kubernetes Node.
+- You can also mount network file-shares.
+
+
+######################################################################################
+### PersistentVolumes and PersistentVolumeClaims
+######################################################################################
+
+- Allows volumes to be created without having the Pod definition bound to a specific implementation.
+
+- This externalizes the volume configuration so the same definition can be used on another Kubernetes
+  Cloud provider where the volume implementation will be different.
+
+  - This works by specifing a PersistentVolumeClaim indicating the characteristics of the needed storage.  
+    The claim is submitted to the Kubernetes REST api and it responds by finding a Persistent Volume meeting
+    the needs of the claim.  The claim is then bound to the volume. The the PersistentVolumeClaim can be used 
+    as a volume within the Pod.
+  - The PersistentVolumeClaim cannot be used by other Pods until the assocated PersistentVolumeClaim 
+    association to the PersistentVolume is deleted.
+
+  - Some of the volume characteristics expressed in the Claim are:
+      - Nedded SIZE
+      - Read/Write Needs
+
+
+######################################################################################
+### Application Configuration
+######################################################################################   
+    
+
+
+
+
+######################################################################################
 ### Deployments
 ######################################################################################
+
 
 
 

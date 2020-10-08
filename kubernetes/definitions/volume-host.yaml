@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: kube-service
+spec:
+  containers:
+  - image: blgreco72dev/kube-service
+    name: kube-srv
+    volumeMounts:
+    - name: host-data
+      mountPath: /host/settings
+    ports:
+    - containerPort: 6200
+      protocol: TCP
+  nodeSelector:
+    kubernetes.io/hostname: w-node3    
+  volumes:
+  - name: host-data
+    hostPath:
+      path: /home/w-node3/settings
+    
