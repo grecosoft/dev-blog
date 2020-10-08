@@ -22,7 +22,7 @@ public class PodController : ControllerBase
     
 
     [HttpGet("environment-variables")]
-    public IActionResult GetMachineName() => Ok(Environment.GetEnvironmentVariables());
+    public IActionResult GetEnvVars() => Ok(Environment.GetEnvironmentVariables());
     
 
     [HttpGet("app-settings")]

@@ -7,7 +7,7 @@ namespace Kube.Service.WebApi
     public class ConfigController : ControllerBase
     {
         [HttpGet("command-args")]
-        public IActionResult GetEnvVars() => Ok(Environment.GetCommandLineArgs());
+        public IActionResult GetCommandArgs() => Ok(Environment.GetCommandLineArgs());
 
     }
 }

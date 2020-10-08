@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: kube-service
+spec:
+  containers:
+  - image: blgreco72dev/kube-service
+    name: kube-srv
+    env:
+    - name: CONFIG_VAL1
+      value: "1000"
+    - name: CONFIG_VAL2
+      value: "YES"
+    ports:
+    - containerPort: 6200
+      protocol: TCP

@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: testconfig
+data:
+  val1: "7000"
+  val2: "V3000"

@@ -3436,12 +3436,245 @@ $ curl http://localhost:8888/api/config/command-args
     ["/microservice/Kube.Service.WebApi.dll","100","M","YES"]
 
   *** Strings don't need to be enclosed inquotation marks, but numbers must be.
-  *** This sounds backwards... but ok.
+  *** This ass sounds backwards... but ok.
 
 
 ---------------------------------------------------------------------------------------------
 Envrionment Variables
 ---------------------------------------------------------------------------------------------
+
+- Environment variables can also be specified within a Pod definition.
+
+$ cat definitions/config-env-vars.yaml 
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: kube-service
+spec:
+  containers:
+  - image: blgreco72dev/kube-service
+    name: kube-srv
+    env:
+    - name: CONFIG_VAL1
+      value: "1000"
+    - name: CONFIG_VAL2
+      value: "YES"
+    ports:
+    - containerPort: 6200
+      protocol: TCP
+
+$ kubectl create -f definitions/config-env-vars.yaml
+$ kubectl port-forward kube-service 8888:6200
+
+$ curl http://localhost:8888/api/pod/environment-variables
+
+
+- The above two ways of specifing configuration values would require having
+  separate pod definition files for each environment.  ConfigMaps can be used
+  to externalize the configuration values.
+
+
+---------------------------------------------------------------------------------------------
+ConfigMap
+---------------------------------------------------------------------------------------------
+
+- A Resource represeting a set of named key/value pairs.  The values contained within the 
+  ConfigMap can then passed to Containers by mapping stored key/values to environment
+  variables or accessing by declaring corresponding volumes.
+
+- ConfigMap resources can be define at the command-line or by declaring a Resource definition file.
+
+$ kubectl create configmap devconfig --from-literal=val1="5000" --from-literal=val2="V1000"
+
+$ kubectl get configmaps
+
+    NAME                 DATA   AGE
+    devconfig            2      50s
+
+$ kubectl describe configmap devconfig
+
+    Name:         devconfig
+    Namespace:    default
+    Labels:       <none>
+    Annotations:  <none>
+
+    Data
+    ====
+    val1:
+    ----
+    5000
+    val2:
+    ----
+    V1000
+    Events:  <none>
+
+- The following is definition the configuration within a definition file:
+
+$ cat definitions/config-map-definition.yaml 
+
+    apiVersion: v1
+    kind: ConfigMap
+    metadata:
+      name: testconfig
+    data:
+      val1: "7000"
+      val2: "V3000"
+
+$ kubectl create -f definitions/config-map-definition.yaml 
+$ kubectl describe configmap testconfig
+
+    Name:         testconfig
+    Namespace:    default
+    Labels:       <none>
+    Annotations:  <none>
+
+    Data
+    ====
+    val1:
+    ----
+    7000
+    val2:
+    ----
+    V3000
+    Events:  <none>
+
+------------------------------------------------------------------------------------
+
+- Values within a configuration map are not limited to simple literial values.
+- A value for a key can reference the contents of a complete file.
+- By default, the name of the file is used as the key within the ConfigMap.
+
+$ cat definitions/settings.dat 
+
+    {
+      "valueOne": "http://www.saab.com",
+      "valueTwo": "http://vw.com",
+      "comment": "Why did GM have to screw up SAAB :("
+    }
+
+$ kubectl create configmap car-makes --from-file=definitions/settings.dat
+$ kubectl describe configmap car-makes
+
+    Name:         car-makes
+    Namespace:    default
+    Labels:       <none>
+    Annotations:  <none>
+
+    Data
+    ====
+    settings.dat:
+    ----
+    {
+      "valueOne": "http://www.saab.com",
+      "valueTwo": "http://vw.com",
+      "comment": "Why did GM have to screw up SAAB :("
+    }
+
+
+    Events:  <none>
+
+- Also, a ConfigMap can be populated for a set of files within a directory:
+
+$ kubectl create configmap service-values --from-file=definitions/configs
+
+$ kubectl describe configmap service-values
+
+      Name:         service-values
+      Namespace:    default
+      Labels:       <none>
+      Annotations:  <none>
+
+      Data
+      ====
+      settings.dat:
+      ----
+      {
+        "valueOne": "http://www.saab.com",
+        "valueTwo": "http://vw.com",
+        "comment": "Why did GM have to screw up SAAB :("
+      }
+
+
+      values.dat:
+      ----
+      MinYear=1995
+      MaxPrice=60000
+      MinPrice=5000
+
+      Events:  <none>
+
+------------------------------------------------------------------------------------
+Mapping ConfigMap to Containers
+------------------------------------------------------------------------------------
+
+- Once a ConfigMap resource is defined, the values it contains are then passed to 
+  containers so they can be accessed.  There are different way in which a ConfigMap
+  can be mapped to a container.
+
+
+Passing as Environment Variable
+--------------------------------
+
+$ cat definitions/config-pod-configmap.yaml
+
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: kube-service
+    spec:
+      containers:
+      - image: blgreco72dev/kube-service
+        name: kube-srv
+        ports:
+        - containerPort: 6200
+          protocol: TCP
+        env:
+          - name: value-one
+            valueFrom:
+              configMapKeyRef:
+                name:  devconfig
+                key: val1
+          - name: value-two
+            valueFrom:
+              configMapKeyRef:
+                name: devconfig
+                key: val2
+
+$ kubectl create -f definitions/config-pod-configmap.yaml
+$ kubectl port-forward kube-service 8888:6200
+
+$ curl http://localhost:8888/api/pod/environment-variables
+
+
+Passing all ConfigMap Key/Values as Variables
+------------------------------------------------
+
+- Instead of having to map each Container variable to a values specified within a ConfigMap,
+  Container varaibles can automatically be created for all ConfigMap key/values at once.
+
+$ cat definitions/config-pod-configmap2.yml 
+
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: kube-service
+    spec:
+      containers:
+      - image: blgreco72dev/kube-service
+        name: kube-srv
+        ports:
+        - containerPort: 6200
+          protocol: TCP
+        envFrom:
+        - prefix: CONFIG_
+          configMapRef:
+            name: devconfig
+
+$ kubectl create -f definitions/config-pod-configmap2.yml 
+$ kubectl port-forward kube-service 8888:6200
+
+$ curl http://localhost:8888/api/pod/environment-variables
 
 
 
