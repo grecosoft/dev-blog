@@ -3388,7 +3388,60 @@ $ curl -v http://localhost:8888/api/volume/host-data?file=keyvalue.dat
 ### Application Configuration
 ######################################################################################   
     
+- Configuration files should never be part of a Docker image from which Containers are created.
+- Configuration files usually contain environment specific settings and if the settings are 
+  stored within a file, then a different image would need to be create per environment.
 
+- Kubernetes provides a Resource type called a ConfigMap used to store configuration settings
+  external to the container created from an image.
+
+- The Dockerfile from which containers are creates specific the following:
+    ENTRYPOINT: Specifies the executable to be ran when the container is started.
+    CMD: Specifies the arguments passed to ENTRYPOINT.
+
+- If you have a node application for example, it is best to use what is called the "exec" from:
+    ENTRYPOINT ["node", "app.js"]
+
+  This will run the application directly and not via the shell as the following would:
+    ENTRYPOINT node app.js
+
+- When defining a Pod, the command arguments can be overriden.  Also, not as common, the 
+  executable ENTRYPOINT specified can also be overriden. 
+
+
+---------------------------------------------------------------------------------------------
+Command Line Arguments
+---------------------------------------------------------------------------------------------
+
+$ cat definitions/config-cmd-args.yaml 
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: kube-service
+spec:
+  containers:
+  - image: blgreco72dev/kube-service
+    name: kube-srv
+    args: ["100", "M", "YES"]
+    ports:
+    - containerPort: 6200
+      protocol: TCP
+
+$ kubectl create -f definitions/config-cmd-args.yaml  
+$ kubectl port-forward kube-service 8888:6200
+
+$ curl http://localhost:8888/api/config/command-args
+
+    ["/microservice/Kube.Service.WebApi.dll","100","M","YES"]
+
+  *** Strings don't need to be enclosed inquotation marks, but numbers must be.
+  *** This sounds backwards... but ok.
+
+
+---------------------------------------------------------------------------------------------
+Envrionment Variables
+---------------------------------------------------------------------------------------------
 
 
 
