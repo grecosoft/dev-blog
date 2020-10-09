@@ -3677,6 +3677,473 @@ $ kubectl port-forward kube-service 8888:6200
 $ curl http://localhost:8888/api/pod/environment-variables
 
 
+ConfigMap Volume
+------------------------------------------------
+
+- Allows you to expose a ConfigMap as a volume, mounted to a path,
+  where the container can read the configurations as files.
+
+- Each ConfigMap entry becomes a file.
+- This method is usually used to pass large configuration files to 
+  a container.  However, it can also be used for small atomic values.
+
+- First a ConfigMap needs to be created for the directory containing
+  the configuration files that are to be exposed as volumes.
+
+$ kubectl create configmap volume-config --from-file=definitions/configs
+$ kubectl describe configmap volume-config
+
+
+$ cat definitions/config-pod-volume.yaml 
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: kube-service
+spec:
+  containers:
+  - image: blgreco72dev/kube-service
+    name: kube-srv
+    ports:
+    - containerPort: 6200
+      protocol: TCP
+    volumeMounts:
+    - name: settings
+      mountPath: /etc/kube-config/settings
+      readOnly: true
+  volumes:
+  - name: settings
+    configMap:
+      name: volume-config
+
+
+$ kubectl create -f definitions/config-pod-volume.yaml 
+
+NAME           READY   STATUS    RESTARTS   AGE    IP                NODE      NOMINATED NODE   READINESS GATES
+client         1/1     Running   12         2d1h   192.168.138.27    w-node3   <none>           <none>
+kube-service   1/1     Running   0          2m8s   192.168.129.254   w-node1   <none>           <none>
+
+
+$ kubectl port-forward kube-service 8888:6200
+
+$ kubectl describe configmap volume-config
+
+    Name:         volume-config
+    Namespace:    default
+    Labels:       <none>
+    Annotations:  <none>
+
+    Data
+    ====
+    settings.dat:
+    ----
+    {
+      "valueOne": "http://www.saab.com",
+      "valueTwo": "http://vw.com",
+      "comment": "Why did GM have to screw up SAAB :("
+    }
+
+
+    values.dat:
+    ----
+    MinYear=1995
+    MaxPrice=60000
+    MinPrice=5000
+
+    Events:  <none>
+
+$ curl http://localhost:8888/api/config/volume?file=settings.dat
+$ curl http://localhost:8888/api/config/volume?file=values.dat
+
+
+*** NOTE:  If you map to a directory already having files, those files will no longer
+           be accessable.  
+
+--------------------------------------------------------------------------------------
+
+- When using Environment Variables and Command Line Arguments outside of a 
+  ConfigMap, the value cannot not be updated without deleted and recreating
+  the pod.
+
+- When using a ConfigMap, the values it manages can be updated without having
+  to recreate the Pod.
+
+######################################################################################
+### Secrets for Sensitive Data
+######################################################################################
+
+- Used to pass Sensitive information to Containers.
+- Kubernetes provides a Secret resource that can be used the same as a ConfigMap.
+
+- Secrets are only distributed to Nodes running a Pod having containers needing the Secret.
+- Secrets are stored in Memory on the Nodes and not on the file system.
+- etcd stores the Secrets in encripted form.
+
+$ kubectl get secrets
+    NAME                                       TYPE                                  DATA   AGE
+    default-token-pf4lx                        kubernetes.io/service-account-token   3      12d
+
+$ kubectl describe secret default-token-pf4lx
+
+    Name:         default-token-pf4lx
+    Namespace:    default
+    Labels:       <none>
+    Annotations:  kubernetes.io/service-account.name: default
+                  kubernetes.io/service-account.uid: 033fb569-1b30-4651-ae2f-385c2d81a075
+
+    Type:  kubernetes.io/service-account-token
+
+    Data
+    ====
+    ca.crt:     1066 bytes
+    namespace:  7 bytes
+    token:      eyJhbGciOiJSUzI1NiIsImtpZCI6IloyalF
+
+- The above Secret is bound to each Pod via a Volumn.  The data within this Secret contains
+  the information needed to securly send requests to the Kubernetes REST Api.
+
+- If you describe a pod, you will see where see Secret is mounting:
+
+$ kubectl describe pod client
+
+    Mounts:
+      /var/run/secrets/kubernetes.io/serviceaccount from default-token-pf4lx (ro)
+
+$ kubectl describe secret close-eyes
+
+    Name:         close-eyes
+    Namespace:    default
+    Labels:       <none>
+    Annotations:  <none>
+
+    Type:  Opaque
+
+    Data
+    ====
+    hide-me:  50 bytes
+
+$ kubectl get secret close-eyes -o yaml
+
+      apiVersion: v1
+      data:
+        hide-me: VGhpcyBpcyBzb210aGluZyBvbmUgc2hvdWxkIHNlZS4gQ2xvc2UgeW91ciBleWVzLgo=
+      kind: Secret
+      metadata:
+        creationTimestamp: "2020-10-09T11:15:58Z"
+        managedFields:
+        - apiVersion: v1
+          fieldsType: FieldsV1
+          fieldsV1:
+            f:data:
+              .: {}
+              f:hide-me: {}
+            f:type: {}
+          manager: kubectl-create
+          operation: Update
+          time: "2020-10-09T11:15:58Z"
+        name: close-eyes
+        namespace: default
+        resourceVersion: "715252"
+        selfLink: /api/v1/namespaces/default/secrets/close-eyes
+        uid: 709ba30d-c85b-4a4b-bbae-8e4a1b9e9e21
+      type: Opaque
+
+- The value of the Secret is stored as Base64 since a Secret can also contain binary data.
+
+$ echo 'VGhpcyBpcyBzb210aGluZyBvbmUgc2hvdWxkIHNlZS4gQ2xvc2UgeW91ciBleWVzLgo=' | base64 --decode
+
+- When the Secret value is mounted to a directory using a Volume, the value is decoded and
+  written to the file.  The value is also decode if passed to a Container as an environment variable.
+
+----------------------------------------------------------------------------------------
+Creating secrets
+------------------------------------------------------------------------
+
+- The following will create a file containing Sensitive data.
+
+$ echo This is somthing one should see.  Close your eyes. > definitions/secrets/hide-me
+
+- Then a Secret resource is created containing the contents of the file(s).
+
+$ kubectl create secret generic close-eyes --from-file=definitions/secrets/hide-me
+
+- The following will mount the Secret to a Volume:
+
+$ cat definitions/secret-pod-volume.yaml 
+
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: kube-service
+    spec:
+      containers:
+      - image: blgreco72dev/kube-service
+        name: kube-srv
+        volumeMounts:
+        - name: secret-data
+          mountPath: /etc/kube-config/settings
+          readOnly: true
+        ports:
+        - containerPort: 6200
+          protocol: TCP
+      volumes:
+      - name: secret-data
+        secret:
+          secretName: close-eyes
+
+
+$ kubectl create -f definitions/secret-pod-volume.yaml
+$ kubectl port-forward kube-service 8888:6200
+
+$ curl http://localhost:8888/api/config/volume?file=hide-me
+
+
+######################################################################################
+### Accessing Pod Metadata
+######################################################################################
+
+- Service-apis running within a Pod's container can read metadata specified when the pod is created.
+- Service-apis can also call the Kubernetes REST api to obtain information about other pods.
+
+- DownwardAPI - allows the passing of information about a Pod and its environment to Container
+  running processes.  This is done via Envrionment Variable or Volumes.
+
+- Note:  Labels and Annotations can only be passed as Volumes.
+
+$ cat definitions/meta-pod-definition.yaml
+
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: kube-service
+      spec:
+        containers:
+        - image: blgreco72dev/kube-service
+          name: kube-srv
+          ports:
+          - containerPort: 6200
+            protocol: TCP
+          resources:
+            requests:
+              cpu: 15m
+              memory: 1000Ki
+          env:
+          - name: POD_NAME
+            valueFrom:
+              fieldRef:      
+                fieldPath: metadata.name
+          - name: POD_NAMESPACE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace
+          - name: POD_IP
+            valueFrom:
+              fieldRef:
+                fieldPath: status.podIP
+          - name: NODE_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: spec.nodeName
+          - name: SERVICE_ACCOUNT
+            valueFrom:
+              fieldRef:
+                fieldPath: spec.serviceAccountName
+          - name: CONTAINER_CUP_REQUEST_MILLICORES
+            valueFrom:
+              resourceFieldRef:
+                resource: requests.cpu
+                divisor: 1m
+
+$ kubectl create -f definitions/meta-pod-definition.yaml
+$ kubectl port-forward kube-service 8888:6200
+
+$ curl -v http://localhost:8888/api/pod/environment-variables
+
+--------------------------------------------------------------------------------------
+
+- Metadata can also be passed to Containers using a DownwardAPI volume.  This is
+  required for a container to access lables and annotations.
+
+ $ cat definitions/meta-pod-volume-definition.yaml 
+
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: kube-service
+        labels:
+          system: one
+          version: v222
+        annotations:
+          department: claims
+          summary: |
+            This is an example of specifying
+            multiple lines.
+      spec:
+        containers:
+        - image: blgreco72dev/kube-service
+          name: kube-srv
+          ports:
+          - containerPort: 6200
+            protocol: TCP
+          resources:
+            requests:
+              cpu: 15m
+              memory: 100Ki
+          volumeMounts:
+          - name: downward
+            mountPath: /etc/downward
+        volumes:
+          - name: downward
+            downwardAPI:
+              items:
+              - path: "podName"
+                fieldRef:
+                  fieldPath: metadata.name
+              - path: "podNamespace"
+                fieldRef:
+                  fieldPath: metadata.namespace
+              - path: "labels"
+                fieldRef:
+                  fieldPath: metadata.labels
+              - path: "annotations"
+                fieldRef:
+                  fieldPath: metadata.annotations
+              - path: "containerCpuRequestsMilliCores"
+                resourceFieldRef:
+                  containerName: kube-srv
+                  resource: requests.cpu
+                  divisor: 1m 
+
+
+$ kubeclt create -f definitions/meta-pod-volume-definition.yaml 
+
+- Each item listed within the Volume is stored as a file having the
+  name specified by the path.
+
+- The labels and annotations can be updated dynamically at runtime without
+  having to recreate the container.  Kubernetes will keep the corresponding
+  file syncronized.
+
+- Below shows the list of mounted files and also the contents:
+
+$ kubectl exec kube-service -- ls -lL /etc/downward
+
+    -rw-r--r-- 1 root root 273 Oct  9 19:29 annotations
+    -rw-r--r-- 1 root root   2 Oct  9 19:29 containerCpuRequestsMilliCores
+    -rw-r--r-- 1 root root  27 Oct  9 19:29 labels
+    -rw-r--r-- 1 root root  12 Oct  9 19:29 podName
+    -rw-r--r-- 1 root root   7 Oct  9 19:29 podNamespace
+
+$ kubectl exec kube-service -- cat /etc/downward/labels
+$ kubectl exec kube-service -- cat /etc/downward/annotations
+
+
+######################################################################################
+### Obtaining Information from the Kubernetes API Server
+######################################################################################
+
+- The prior method of obtaining metadata is scoped to a subset of the Pods information.
+- You cannot read metadata assocated with another Pod.
+
+- However, any executable running within a Container inside a Pod can make calls to 
+  the Kubernetes API Server.  This allows greater amounts of information to be retreived.
+
+---------------------------------------------------------------------------------------
+
+- Before writing code within a service-api to access the REST Api, calls can be made
+  from the developers computer to first research the data.
+
+$ kubectl cluster-info
+
+Kubernetes master is running at https://192.168.56.4:6443
+KubeDNS is running at https://192.168.56.4:6443/api/v1/namespaces/kube-system/services/kube-dns:dns/proxy
+
+- The above shows where the service is running.  It is best to make the calls via a proxy server 
+  so that it can take care of all the authentication details:
+
+$ kubectl proxy
+
+$ curl localhost:8001
+
+- The above request will return a list of service entry-points that can be called
+  to manage the different Kubernetes resource types such as pods, serivces, ...
+
+- The following will list a specic version of the API:
+    $ curl localhost:8001/api/v1
+
+- From here you can then determine the next level which is most often a type of resource.
+  The following shows the API call to list the running pods:
+
+$ curl localhost:8001/api/v1/pods
+
+- And the following will list all of the Node belonging to the Cluster and the information
+  for a specific node:
+
+$ curl localhost:8001/api/v1/nodes
+$ curl localhost:8001/api/v1/nodes/w-node3
+
+----------------------------------------------------------------------------------------------
+Accessing Kubernetes REST Api from within Container
+----------------------------------------------------------------------------------------------
+
+- The following shows how to correctly communciate with the REST Api from within a container.
+- To do so, you must first use a Certificate to validate the server you are communicating with
+  is acutally the server.  Then you must authenticate.
+
+- The certificate used to validate the server is stored as a Secret on all Nodes.
+
+$ kubectl get secrets
+
+    NAME                                       TYPE                                  DATA   AGE
+    default-token-pf4lx                        kubernetes.io/service-account-token   3      13d
+
+- The above secret is mounted to the following directory within each Pod:
+   /var/run/secrets/kubernetes.io/serviceaccount/
+
+- Use the above to configure curl to use the certificate stored within this secret when it 
+  calls the Kubernetes REST Api:
+
+----------------------------------------------------------------------------------
+
+https://medium.com/@antoine_martin/kubernetes-access-the-api-inside-a-pod-eb49af8c8b06
+
+
+$ kubectl create role pod-reader --verb=get --verb=list --verb=watch --resource=pods,services,deploymentsrole.rbac.authorization.k8s.io/pod-reader created
+$ kubectl create rolebinding default-pod-reader --role=pod-reader --serviceaccount=default:default --namespace=defaultrolebinding.rbac.authorization.k8s.io/default-pod-reader created
+
+----------------------------------------------------------------------------------
+
+- Fist, run a process within a container so a call will be made from within:
+$ kubectl exec -it client -- bash
+
+# root@client:/# ls /var/run/secrets/kubernetes.io/serviceaccount/
+# cat /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+
+# curl --cacert /var/run/secrets/kubernetes.io//serviceaccount/ca.crt https://kubernetes
+
+- The above will now allow the call to go through, but next you need to authenticate.
+- Before authentication, the following command can be called so you do not have to 
+  pass the --cacert on every call:
+
+# export CURL_CA_BUNDLE=/var/run/secrets/kubernetes.io/serviceaccount/ca.crt 
+# curl https://kubernetes
+
+- The mounted Secret volume also contains an authentication token:
+
+# cat /var/run/secrets/kubernetes.io/serviceaccount/token 
+
+- Next, store the token within a variable:
+
+# TOKEN=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
+
+- The following will make a call that will Succeeded:
+
+
+ $ curl -s -H "Authorization: Bearer $TOKEN" https://kubernetes/api/v1/namespaces/default/pods
+
+----------------------------------------------------------------------------------
+Ambassador Containes
+----------------------------------------------------------------------------------
 
 ######################################################################################
 ### Deployments
