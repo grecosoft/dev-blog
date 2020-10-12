@@ -1,0 +1,22 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: kube-service
+spec:
+  selector:
+    matchLabels:
+      app: kube-service
+  serviceName: "kube-service"
+  replicas: 2
+  template:
+    metadata:
+      labels:
+        app: kube-service
+    spec:
+      containers:
+      - name: kube-service
+        image: blgreco72dev/kube-service
+        ports:
+        - containerPort: 6200
+          name: http
+

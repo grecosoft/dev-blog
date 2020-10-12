@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: kube-service
+spec:
+  clusterIP: None 
+  selector:
+    app: kube-service
+  ports:
+  - name: http
+    port: 80
+

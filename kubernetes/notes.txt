@@ -4149,11 +4149,363 @@ Ambassador Containes
 ### Deployments
 ######################################################################################
 
+- Resources that allow for easy coordination of updates.
+- Built on top of the ReplicaSet and creates a ReplicaSet per-version of the deployment.
+- When a Deployment is udpated, a new ReplicaSet is created.
+
+- The Deployment, based on its update date strategy, reduces the count of pods in the
+  older ReplicaSet and increases the number of pods in the new ReplicaSet until all
+  Pods are running the latest version of the Container.
+
+- The following will create an initial Deployment based on v2 of a Docker image that 
+  when then be updated to v3.
+
+$ cat definitions/deployment-definition.yaml 
+
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: kube-service
+    spec:
+      replicas: 3
+      selector:
+        matchLabels:
+          app: kube-service
+      template:
+        metadata:
+          name: kube-service
+          labels: 
+            app: kube-service
+        spec:
+          containers:
+          - image: blgreco72dev/kube-service:v2
+            name: kube-service
+
+$ kubectl create -f definitions/deployment-definition.yaml --record
+
+$  kubectl get deployments
+
+  NAME           READY   UP-TO-DATE   AVAILABLE   AGE
+  kube-service   3/3     3            3           21s
+
+$ kubectl get rs
+
+  NAME                      DESIRED   CURRENT   READY   AGE
+  kube-service-5777c44ccf   3         3         3       71s
+
+$ kubectl get pods -o wide
+
+  NAME                            READY   STATUS    RESTARTS   AGE     IP                NODE      NOMINATED NODE   READINESS GATES
+  client                          1/1     Running   19         5d12h   192.168.138.33    w-node3   <none>           <none>
+  kube-service-5777c44ccf-7mfl2   1/1     Running   0          97s     192.168.129.208   w-node1   <none>           <none>
+  kube-service-5777c44ccf-st8dl   1/1     Running   0          97s     192.168.144.105   w-node2   <none>           <none>
+  kube-service-5777c44ccf-z5twf   1/1     Running   0          97s     192.168.138.35    w-node3   <none>           <none>
+
+-------------------------------------------------------------------------------------------------------------
+
+$ kubectl port-forward kube-service-5777c44ccf-st8dl 8888:6200
+
+$ curl http://localhost:8888/api/pod/version
+    v2
+
+- Note how deployment track the Pods belonging to a geven ReplicaSet by using the unique HolderIdentity,
+  specified within the ReplicaSet name, in each of the Pods created by the ReplicaSet.
+
+** The --record option should be specified when creating the deployment.  This records the command line
+   in the revision history.
+
+- The following command can be used to view the status of a Deployment:
+
+$ kubectl rollout status deployment kube-service
+    deployment "kube-service" successfully rolled out
+
+---------------------------------------------------------------------------------------------------------------
+
+ - To update a deployment, the Image version specified within the Pod template is the only thing that needs to be updated.
+ - The deployment will then create a new ReplicaSet for the updated version.
+
+ - Deployment Strategies:
+    - RollingUpdated:  This updated a deployment by reducing the number of pods in the currently deployed ReplicaSet and
+      increasing the number of Pods within the new ReplicaSet version.  This is done until all the Pods are updated to the
+      latest version.  This allows the application service to remain functional during the update process.
+    
+    - Recreate:  This deletes all the Pods associated with the currently deployed reployed ReplicaSet and creates new
+      instances of the Pods associated with the new ReplicaSet.  This should be used when a given application cannot 
+      support running two versions at the same time.
+
+- For a Deployment consisting of a single Container, the "set image" command can be used to update the version of the image.
+- For a larger deployment, the first Deployment should be Applyied and then a newly updated YAML Deployment definition can
+  be applied specifying the newest version of the Images.
+
+$  kubectl set image deployment kube-service kube-service=blgreco72dev/kube-service:v3
+
+- After the above change is make, Controllers detect the update and communicate within the Scheduler to assign the 
+  new Image version to run in Pods on specific Nodes.  The kubelet detectes the changes to remove the old Pods and
+  to create new Pods running the newer version of the Image.
+
+- The deployment will have created a new ReplicaSet to record the new version of the serivce.
+
+$ kubectl get rs
+
+    NAME                      DESIRED   CURRENT   READY   AGE
+    kube-service-5777c44ccf   0         0         0       28m
+    kube-service-59dc8b5bdd   3         3         3       3m36s
+
+- The above shows that the prior ReplicaSet now has zero running Pods and the newest version
+  has 3 associated pods.  This can be tested by calling a route on one of the pods:
+
+$ kubectl get pods -o wide
+
+    NAME                            READY   STATUS    RESTARTS   AGE     IP                NODE      NOMINATED NODE   READINESS GATES
+    client                          1/1     Running   19         5d13h   192.168.138.33    w-node3   <none>           <none>
+    kube-service-59dc8b5bdd-4q97c   1/1     Running   0          5m37s   192.168.129.211   w-node1   <none>           <none>
+    kube-service-59dc8b5bdd-rmr9n   1/1     Running   0          5m34s   192.168.144.102   w-node2   <none>           <none>
+    kube-service-59dc8b5bdd-srqjk   1/1     Running   0          5m30s   192.168.138.34    w-node3   <none>           <none>
+
+$ kubectl port-forward kube-service-59dc8b5bdd-rmr9n 8888:6200
+$ curl http://localhost:8888/api/pod/version
+    v3
+
+-------------------------------------------------------------------------------------------------------------------------------
+
+- The following will roll back a deployment to v2 of the serivce.
+- When using Deployments, the underlying created ReplicaSet resources should never be directly operated on since they
+  are created by the higher level Deployment resource.
+
+$ kubectl rollout undo deployment kube-service
+    deployment.apps/kube-service rolled back
+
+    NAME                      DESIRED   CURRENT   READY   AGE
+    kube-service-5777c44ccf   3         3         3       36m
+    kube-service-59dc8b5bdd   0         0         0       11m
+
+$ kubectl get pods -o wide
+
+    NAME                            READY   STATUS    RESTARTS   AGE     IP                NODE      NOMINATED NODE   READINESS GATES
+    client                          1/1     Running   20         5d13h   192.168.138.33    w-node3   <none>           <none>
+    kube-service-5777c44ccf-8vb6r   1/1     Running   0          62s     192.168.144.104   w-node2   <none>           <none>
+    kube-service-5777c44ccf-f2gt6   1/1     Running   0          60s     192.168.138.38    w-node3   <none>           <none>
+    kube-service-5777c44ccf-gp44w   1/1     Running   0          64s     192.168.129.210   w-node1   <none>           <none>
+
+$ kubectl port-forward kube-service-5777c44ccf-f2gt6 8888:6200
+$ curl http://localhost:8888/api/pod/version
+    v2
+
+- The following command is used to view the rollout history of a Deployment:
+
+$ kubectl rollout history deployment kube-service
+
+    REVISION  CHANGE-CAUSE
+    2         kubectl create --filename=definitions/deployment-definition.yaml --record=true
+    3         kubectl create --filename=definitions/deployment-definition.yaml --record=true
+
+** Note:  not sure why, but the CHANGE-CLAUSE column should how the image version...
+
+----------------------------------------------------------------------------------------------
+
+- You can also specify a specific revision to rollback to:
+
+$ kubectl rollout history deployment kube-service
 
 
+    REVISION  CHANGE-CAUSE
+    2         kubectl create --filename=definitions/deployment-definition.yaml --record=true
+    3         kubectl create --filename=definitions/deployment-definition.yaml --record=true
+
+- The following will undo the last rollback and redeploy verison 3:
+
+$ ubectl rollout undo deployment kube-service
+
+NAME                      DESIRED   CURRENT   READY   AGE   CONTAINERS     IMAGES                         SELECTOR
+kube-service-5777c44ccf   0         0         0       48m   kube-service   blgreco72dev/kube-service:v2   app=kube-service,pod-template-hash=5777c44ccf
+kube-service-59dc8b5bdd   3         3         3       23m   kube-service   blgreco72dev/kube-service:v3   app=kube-service,pod-template-hash=59dc8b5bdd
+
+** Note:  if using the wide output on the ReplicaSet, the image version will be shown.
+
+- Above shows we are back to the latest version 3.  
+
+$ kubectl get pods -o wide
+
+    NAME                            READY   STATUS    RESTARTS   AGE     IP                NODE      NOMINATED NODE   READINESS GATES
+    client                          1/1     Running   20         5d13h   192.168.138.33    w-node3   <none>           <none>
+    kube-service-59dc8b5bdd-9m9qw   1/1     Running   0          3m10s   192.168.138.39    w-node3   <none>           <none>
+    kube-service-59dc8b5bdd-wzdp6   1/1     Running   0          3m15s   192.168.129.209   w-node1   <none>           <none>
+    kube-service-59dc8b5bdd-xkcw8   1/1     Running   0          3m13s   192.168.144.109   w-node2   <none>           <none>
+
+$ kubectl port-forward kube-service-59dc8b5bdd-xkcw8 8888:6200
+$ curl http://localhost:8888/api/pod/version
+    v3
+
+- Next, the following shows how to specify a specific version to rollback to:
+
+$ kubectl rollout history deployment kube-service
+
+REVISION  CHANGE-CAUSE
+3         kubectl create --filename=definitions/deployment-definition.yaml --record=true
+4         kubectl create --filename=definitions/deployment-definition.yaml --record=true
+
+$ kubectl rollout undo deployment kube-service --to-revision=3
+    deployment.apps/kube-service rolled back
+
+----------------------------------------------------------------------------------------------------------------------------------------
+
+- The following two properties determine how many Pods are removed and created when doing a rolling update:
+    - MaxSurge
+    - MaxUnavailable
 
 
+######################################################################################
+### StatefullSets
+######################################################################################
 
+- If a ReplicaSet was used to deploy a stated service such as a database, there would
+  be the following issues:
+
+     - The database would need a volume to save its state.
+
+     - If the database was only deployed to a single Node and the same node every
+       time, then it would be possible for the database to work if a volume that
+       survives the lifetime of the Pod was used. 
+
+    - However this is not idea since mutlple instances would not be available.
+
+    - To store the database data outside the lifetime of the Pod or the Node, available
+      PersistentVolumeClaim is often used.  But for a ReplicaSet, each Pod instance created
+      from the template would use the same PersistentVolumeClaim and therefore all write to
+      the same file which would only currupt the data.
+
+    - What is needed is for each database Pod instance to have it own individual PersistentVolumeClaim
+      so each databae instance writes to its own file. 
+
+    - Also, if the database Pod is removed from on Node and created on another Node, the same data file
+      needs to be used. 
+
+    - The other issue is that the host names of these Pods will change when they are recreated on
+      another Node which can cause issues.  For some applications, starting a new instance using data
+      from another instance that was deleted can cause issues if the host-name changes.
+
+----------------------------------------------------------------------------------------------------------------
+
+- StatefulSets help address the above issues.
+
+- StatefullSets allows a Pod to be moved to another Node while keeping the same IP address it had when running
+  as a Pod on another Node.  It also allow it to reference the same data volume as it did on the prior Node.
+
+- Pods created from StatefullSets are not exact copies of each other as it is for ReplicaSet definitions. 
+  Each Pod can have it own set of associated volumes idependent of any other Pod created from the same
+  StatefullSet.
+
+- Each pod created by a StatefulSet is assigned an ordinal index (zero based), which is then used to derive
+  the pod's name and host name, and to attach stable storage to the Pod. 
+
+- Unlike a stateless Pod, when referencing a statefull pod, you usually want to operate on a specific pod 
+  from the group, becuase they differ from each other.
+
+- For example if MongoDB was being used, it can be configured to run in a cluster where all writes go to
+  a single DB instance that are then replicated out to one or more other DB instances for reading.
+
+- Scaling the StatefulSet creates a new pod instance with the next unused ordinal index.
+
+- Becauses PersistentVolumeClaims map to PersistentVolumes one-to-one, each pod of a StatefulSet needs to
+  reference a diffeerent PersistentVolumeClaim to have its own separate PersistentVolume.
+
+- The StatefullSet has to create the PersistentVolumeClaims as will, the same way it's creating the Pods
+  (I think this infers that the claims will also have the index appended to the claims's name.)
+
+- The PersistentVolumes for the claims can either be provisioned up-from or just in time through dynamic 
+  provisioning of PersistentVolumes.
+
+- The fact that the PersistentVolumeClaim remains after a scale-down means a subsequent scale-up can reattach
+  the same claim alsong with the bound PersistentVolume and it contents to the new pod instance.
+
+- Kubernetes must take great care to ensure tow stateful pod instances are never running with the same identity 
+  and are bound to the same PersistentVolumeClaim.
+
+-------------------------------------------------------------------------------------------------------------------
+
+- The following need to be completed when creating a StatefullSet:
+    - Create the needed PersistentVolumes
+    - Create governing service required by the StatefullSet.
+    - Create the StatefullSet
+
+
+- (this example will not create a PersistentVolume)
+
+$ cat definitions/stateful-serivce-definition.yaml 
+
+    apiVersion: v1
+    kind: Service
+    metadata:
+      name: kube-service
+    spec:
+      clusterIP: None 
+      selector:
+        app: kube-service
+      ports:
+      - name: http
+        port: 80
+
+$ kubectl create -f definitions/stateful-serivce-definition.yaml 
+
+$ kubectl get statefulset -o wide
+
+    NAME           READY   AGE   CONTAINERS     IMAGES
+    kube-service   2/2     25m   kube-service   blgreco72dev/kube-service
+
+
+$ kubectl get services -o wide
+
+    NAME           TYPE        CLUSTER-IP   EXTERNAL-IP   PORT(S)   AGE    SELECTOR
+    kube-service   ClusterIP   None         <none>        80/TCP    103s   app=kube-service
+
+$ cat definitions/stateful-replica-set-definition.yaml
+
+    apiVersion: apps/v1
+    kind: StatefulSet
+    metadata:
+      name: kube-service
+    spec:
+      selector:
+        matchLabels:
+          app: kube-service
+      serviceName: "kube-service"
+      replicas: 2
+      template:
+        metadata:
+          labels:
+            app: kube-service
+        spec:
+          containers:
+          - name: kube-service
+            image: blgreco72dev/kube-service
+            ports:
+            - containerPort: 6200
+              name: http
+
+$ kubectl get pods -o wide
+NAME             READY   STATUS    RESTARTS   AGE     IP                NODE      NOMINATED NODE   READINESS GATES
+client           1/1     Running   22         5d23h   192.168.138.36    w-node3   <none>           <none>
+kube-service-0   1/1     Running   0          36s     192.168.129.216   w-node1   <none>           <none>
+kube-service-1   1/1     Running   0          33s     192.168.144.106   w-node2   <none>           <none>
+
+$ curl http://localhost:8888/api/pod/host-name
+    kube-service-0
+
+- Next, delete one of the pods and validate that a new Pod with the smame name is created.
+
+$ kubectl delete pod kube-service-0
+$ kubectl get pods -o wide
+
+    NAME             READY   STATUS    RESTARTS   AGE     IP                NODE      NOMINATED NODE   READINESS GATES
+    client           1/1     Running   22         5d23h   192.168.138.36    w-node3   <none>           <none>
+    kube-service-0   1/1     Running   0          4s      192.168.129.215   w-node1   <none>           <none>
+    kube-service-1   1/1     Running   0          4m2s    192.168.144.106   w-node2   <none>           <none>
+
+
+$ curl http://localhost:8888/api/pod/host-name
+    kube-service-0
+
+$ kubectl delete statefulset kube-service
 
 
 [HERE][HERE][HERE][HERE][HERE][HERE][HERE][HERE][HERE][HERE][HERE]

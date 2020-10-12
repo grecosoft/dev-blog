@@ -45,4 +45,7 @@ public class PodController : ControllerBase
         _livenessProbe.ToggleState();
         return Ok();
     }
+
+    [HttpGet("version")]
+    public IActionResult GetVersion() => Ok("v3");
 }
