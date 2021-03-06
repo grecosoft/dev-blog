@@ -1,0 +1,19 @@
+﻿{
+  "configs": {
+    "processing": {
+      "preHandlers": [
+        {
+          "name": "template-fields", "classType": "Biz.Components.Metadata.Forms", "connection": "metadata"
+        },
+        {
+          "name": "template-definitions", "classType": "Biz.Components.Repositories.Templates", "connection": "templates"
+        }
+      ],
+      "postHandlers": [
+        {
+          "name": "template-rendering", "classType": "Biz.Components.Rendering.Handlers", "connection": "render"
+        }
+      ]
+    }
+  }
+}

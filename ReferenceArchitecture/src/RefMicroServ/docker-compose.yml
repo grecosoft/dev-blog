@@ -1,0 +1,6 @@
+version: '3'
+services:
+  ref-micro-api:
+    build: .
+    ports:
+      - "6200:80"
