@@ -4,7 +4,7 @@ metadata:
   name: external-service
 subsets:
   - addresses:  
-    - ip: 172.217.2.110
+    - ip: 172.217.164.174
     - ip: 205.251.242.103  
     ports:
     - port: 80

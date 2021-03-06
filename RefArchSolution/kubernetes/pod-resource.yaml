@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: ref-arch-srv
+spec:
+  containers:
+  - image: blgreco72dev/ref-arch-srv
+    name: kube-srv
+    env:
+    - name: ASPNETCORE_URLS
+      value: http://*:6270
+    ports:
+    - containerPort: 6270
+      protocol: TCP
+    volumeMounts:
+    - name: config
+      mountPath: /etc/ref-arch-srv/configs
+  volumes:
+  - name: config
+    configMap:
+      name: app-settings

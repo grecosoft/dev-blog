@@ -179,7 +179,7 @@ $ ssh w-node1@192.168.56.5
 - Each node in the cluster runs the following:
      - Docker
      - Kubelet
-     - the kube-proxy
+     - kube-proxy
 
 - The kubectl command line sends HTTP REST requests to the Kubernetes API server running
   on the master node.
@@ -187,6 +187,8 @@ $ ssh w-node1@192.168.56.5
 - If you ssh into one of the nodes you can see these running processes:
 
     ps uax
+
+    ps uax | grep -i Kubelet
 
 - You will see the above processes listed.
 
@@ -389,7 +391,7 @@ $ docker pull blgreco72dev/kube-service
 
 - If the Pod only has a single container (which is most often the case), the
   command will be executed within that container.  If the Pod has more than 
-  one container, the -c switch must be specified to select the container by
+  one container, the -c switch must be specified to select the container by 
   name.
 
 - The following will run a Container within a Pod based on an ubuntu image
@@ -545,7 +547,7 @@ Events:
   images and Containers.
 
 - There is only one node in minikube, but for the multi node cluster, execute the following to 
-  determine the node on which the kubia Pod is running:
+  determine the node on which the kube-service Pod is running:
 
 $ kubectl get pods -o wide
 
@@ -578,6 +580,7 @@ minikube ssh
 
 - List the images installed on the Node:
 
+$ sudo -i
 $ docker images
 
 REPOSITORY                        TAG                 IMAGE ID            CREATED             SIZE
@@ -598,7 +601,7 @@ traefik                           v1.7                80ab7ee8304c        2 mont
 jettech/kube-webhook-certgen      v1.2.2              5693ebf5622a        3 months ago        49MB
 traefik                           1.7.24              100389fa48aa        6 months ago        76.4MB
 k8s.gcr.io/pause                  3.2                 80d28bedfe5d        7 months ago        683kB
-gcr.io/google-samples/hello-app   1.0                 bc5c421ecd6c        2 years ago         9.86MB
+gcr.io/google-samples/hello-app   1.0                 bc5c421ecd6c        2 years ago         9.86MBdo
 
 - The above shows several of the Kubernetes component images used to create containers on the VM.
 - As expected, the blgreco72dev/kube-service image exits.
@@ -692,6 +695,7 @@ CONTAINER ID        IMAGE                       COMMAND                  CREATED
 
 docker container rm 2c815c0b5531 -f
 docker image rm 55656d4be676 -f
+
 
 - If you list the images and containers, the image will have been re-pulled down and
   a new container will have been created.
@@ -853,7 +857,7 @@ kube-service      1/1     Running   0          53s   192.168.129.246   w-node1  
 - Applications running within containers typically write log files to standard
   out and standard error streams.
 
-- The logs for a givin Pod can be see by issuing the following command:
+- The logs for a given Pod can be seen by issuing the following command:
 $ kubectl logs kube-service
 
 
@@ -904,7 +908,8 @@ info: Microsoft.Hosting.Lifetime[0]
 - All Pods within a cluster are connected to the same software network so
   containers can call one another by using each others IP address.  However, 
   this is not a good idea since Pods and be stopped, deleted, or moved and
-  will be assigned a new IP Address.  The following shows this:
+  will be assigned a new IP Address. 
+
 
 ------------------------------------------------------------------------------------------------------------
 
@@ -926,7 +931,7 @@ $ ssh w-node1@192.168.56.5
     $ curl 192.168.129.246:6200/api/pod/app-settings
     $ exit
 
-At the above commands shows, the IP assigned to the Pod can be accessed form Node VM on which it runs.
+At the above commands shows, the IP assigned to the Pod can be accessed from the Node VM on which it runs.
 
 ------------------------------------------------------------------------------------------------------------
 
@@ -985,7 +990,6 @@ $ ssh w-node2@192.168.56.6
   process.  The side-car container executes code periodically (i.e. checks an API
   for updates to data consumed by the main container processes.)
 
-
 ######################################################################################
 ### Port Forwarding
 ######################################################################################
@@ -1015,6 +1019,7 @@ $ kubectl port-forward kube-service 8888:6200
 $ curl localhost:8888/api/pod/app-settings
 
 - Cancel port forwarding in terminal by issuing Ctl-C
+
 
 ######################################################################################
 ### Creating Replication Controller
@@ -1138,7 +1143,7 @@ kube-service-rc-w6wj8   1/1     Running   0          20m     192.168.129.247   w
 
 $ kubectl delete pod kube-service-rc-w6wj8 
 
-- Unlike taking w-node3 offline, Kubernetes will almost instantly detect the missing POd and create a new one.
+- Unlike taking w-node3 offline, Kubernetes will almost instantly detect the missing Pod and create a new one.
 
 NAME                    READY   STATUS    RESTARTS   AGE     IP                NODE      NOMINATED NODE   READINESS GATES
 client                  1/1     Running   6          17h     192.168.144.103   w-node2   <none>           <none>
@@ -1263,7 +1268,7 @@ kube-service-rc-wprvc   1/1     Running   1          105m   192.168.138.41    w-
 - The Pod's template within a ReplicationController can be updated.  However, any existing pods will not be affected.
   To apply the update the the existing pods, they need to be first deleted so new ones will be created by the updated
   replication controller.  For example, if the selector is updated to be more specific by adding a check on an additional 
-  lab label, not of the existing pods would match and new ones would be created.
+  lab label, non of the existing pods would match and new ones would be created.
 
 - The following will delete the replication controller and any Pods matching the selector:
 
@@ -1290,7 +1295,7 @@ $ export KUBE_EDITOR="/usr/bin/nano"
 $ kubectl edit rc kube-service-rc
 
 - Next, an additional label will be added to the Pod's template.  After making the change, the
-  pods and their labels will be listed.  Note that the addition label has not effect.  To update
+  pods and their labels will be listed.  Note that the addition label has no effect on the existing pods.  To update
   the nodes, they need to be deleted.  This will trigger the node to be recreated since the 
   current number no longer matches the desired value of 3.
 
@@ -1613,7 +1618,7 @@ $  kubectl delete rs kube-service-rs
   new container is created.
 
 - An initial delay can be specified that will delay the first call to the Liveness 
-  check.  This can be important if the container can't receive requests with first
+  check.  This can be important if the container can't receive requests when first
   started since Kubelet will start calling the Liveness probe after the container
   is created.
 
@@ -1635,6 +1640,12 @@ $  kubectl delete rs kube-service-rs
   selector, the Pod is not stopped - it is just no longer managed by the controller.  
   If a label is added or changed that results in the Pod matching the Controller's
   selector, it will then be managed by the controller.
+
+
+
+
+
+
 
 
 ######################################################################################
@@ -1728,6 +1739,10 @@ greco@ubuntupc:~/_dev/git/dev-blog/kubernetes$ curl 10.104.193.98:8080
 
 $ kubectl delete service kubia-set
 
+
+
+
+
 =====================================================================================================
 NodePort Service Type
 =====================================================================================================
@@ -1742,7 +1757,7 @@ NodePort Service Type
 - A NodePort Service allows a Pod's service-api, running within a container, to be accessed from
   outside the Custer.  A NodePort achieves this by mapping a service-api's Port to an unique Port
   that is exposed off of the Nodes.  Then a service-api can then be referenced by using the IP address
-  of the Node and the associated Port.
+  of any Node and the associated Port.
 
 - Also, a NodePort adds this externally mapped Node Port to all Nodes and not just the Node containing
   the Pod running the service-api.  So any Node IP Address within the Cluster can be used to communicate
@@ -2066,7 +2081,7 @@ kubernetes        ClusterIP   10.96.0.1      <none>        443/TCP        6d20h 
 -------------------------------------------------------------------------------------------------
 
 - While a client service running within the cluster can use the static IP address of the service
-  to call any Pod hosting the service-api, there are better way rather than using the port directly.
+  to call any Pod hosting the service-api, there are better ways rather than using the IP directly.
   The client service can discover the IP address using the following methods.
 
 - If a Pod is created after the service has been created, Kubernetes defines an Environment Variable
@@ -2116,7 +2131,7 @@ HOME=/root
 - The DNS service is a member of the kube-system namespace:
 
 
-- Each service giets a DNS entry in the internal DNS server, and client pods that know the name
+- Each service gets a DNS entry in the internal DNS server, and client pods that know the name
   of the service can access it through it fully qualified domain name (FQDN) instead of of using
   the corresponding environment variable.
 
@@ -2151,7 +2166,7 @@ Service Endpoints
 - Service Selectors are used to create the list of Endpoints based on the IP and Ports
   of all Pods matching the selector.
 
-- The following will list the currently defined Service Endpoint:
+- The following will list the currently defined Service Endpoints:
 
 $ kubectl get endpoints 
 
@@ -2432,7 +2447,7 @@ Events:           <none>
 
 
 **** TLS NOTE:
-  The communication between the client anbd the ingress-controller is encripted (assuming you setup TLS), where as the communication between the controller and the backend pod isn't.  
+  The communication between the client and the ingress-controller is encripted (assuming you setup TLS), where as the communication between the controller and the backend pod isn't.  
   The application running in the pod doesn't need to support TLS.  For example, if the pod runs a web server, it can accept only HTTP traffic and let the Ingress controller take care 
   of everything related to TLS.
 ****
@@ -2447,11 +2462,11 @@ Events:           <none>
 
 - The first way to to define a service of type NodePort.  What this does is exposes the 
   service-api on all nodes contained within the cluster (regardless if the node actually
-  has the pod containing the service-api).  The NodePort defines an Port that is exposed
+  has the pod containing the service-api).  The NodePort defines a Port that is exposed
   by each node running within the cluster to which can be used to access the service using
   the IP address of any node with the defined node-port to access the service.
 
-- Then the request to forward to one of the nodes within the cluster actually running a 
+- Then the request is forward to one of the nodes within the cluster actually running a 
   Pod containing a container with the service-api.  Also note that the static IP/Port of
   the service is used to invoke the service-api.
 
@@ -2521,6 +2536,7 @@ Events:           <none>
     - So the next step in progresses to what is called an Ingress Resource which is documented next.
 
 
+[skipped]
 ######################################################################################
 ### Connecting to Services Outside the Cluster
 ######################################################################################
@@ -2598,7 +2614,7 @@ $ kubectl run client --image blgreco72dev/kube-tools
 
 - Next execute a bash session within the Container running within the client Pod:
 
-$ kubectl exec -it client --bash
+$ kubectl exec -it client -- bash
 
 - List the environment variables from the bash command line:
   # env
@@ -2613,7 +2629,7 @@ $ kubectl exec -it client --bash
 
   # curl 10.98.228.33
 
-
+[skipped]
 ######################################################################################
 ### Labels
 ######################################################################################
@@ -2719,7 +2735,7 @@ $ kubectl get nodes -l kubernetes.io/arch=amd64
 - Within a Pod's resource definition file, the characteristics of the node to deploy the
   pod can be specified within the "spec" section with the property named "nodeSelector".
 
-
+[skipped]
 ######################################################################################
 ### Resource Annotations
 ######################################################################################
@@ -2746,7 +2762,7 @@ IP:           192.168.129.222
 IPs:
   IP:  192.168.129.222
 
-
+[skipped]
 ######################################################################################
 ### Namespaces
 ######################################################################################
@@ -2980,10 +2996,218 @@ Events:
 ### Ready Checks
 ######################################################################################
 
-- As soon as a pod is crated, Kubernetes assumes it is ready to receive connections.
+- As soon as a pod is created, Kubernetes assumes it is ready to receive connections.
 - However, this might not alway be the case.
 - A pod can signal when it is ready.
 - This is mostly needed during container service-api startup.
+
+######################################################################################
+### Deployments
+######################################################################################
+
+- Resources that allow for easy coordination of updates.
+- Built on top of the ReplicaSet and creates a ReplicaSet per-version of the deployment.
+- When a Deployment is updated, a new ReplicaSet is created.
+
+- The Deployment, based on its update date strategy, reduces the count of pods in the
+  older ReplicaSet and increases the number of pods in the new ReplicaSet until all
+  Pods are running the latest version of the Container.
+
+- The following will create an initial Deployment based on v2 of a Docker image that 
+  when then be updated to v3.
+
+$ cat definitions/deployment-definition.yaml 
+
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: kube-service
+    spec:
+      replicas: 3
+      selector:
+        matchLabels:
+          app: kube-service
+      template:
+        metadata:
+          name: kube-service
+          labels: 
+            app: kube-service
+        spec:
+          containers:
+          - image: blgreco72dev/kube-service:v2
+            name: kube-service
+
+$ kubectl create -f definitions/deployment-definition.yaml --record
+
+$  kubectl get deployments
+
+  NAME           READY   UP-TO-DATE   AVAILABLE   AGE
+  kube-service   3/3     3            3           21s
+
+$ kubectl get rs
+
+  NAME                      DESIRED   CURRENT   READY   AGE
+  kube-service-5777c44ccf   3         3         3       71s
+
+$ kubectl get pods -o wide
+
+  NAME                            READY   STATUS    RESTARTS   AGE     IP                NODE      NOMINATED NODE   READINESS GATES\
+  client                          1/1     Running   19         5d12h   192.168.138.33    w-node3   <none>           <none>
+  kube-service-5777c44ccf-7mfl2   1/1     Running   0          97s     192.168.129.208   w-node1   <none>           <none>
+  kube-service-5777c44ccf-st8dl   1/1     Running   0          97s     192.168.144.105   w-node2   <none>           <none>
+  kube-service-5777c44ccf-z5twf   1/1     Running   0          97s     192.168.138.35    w-node3   <none>           <none>
+
+-------------------------------------------------------------------------------------------------------------
+
+$ kubectl port-forward kube-service-5777c44ccf-st8dl 8888:6200
+
+$ curl http://localhost:8888/api/pod/version
+    v2
+
+- Note how deployment track the Pods belonging to a geven ReplicaSet by using the unique HolderIdentity,
+  specified within the ReplicaSet name, in each of the Pods created by the ReplicaSet.
+
+** The --record option should be specified when creating the deployment.  This records the command line
+   in the revision history.
+
+- The following command can be used to view the status of a Deployment:
+
+$ kubectl rollout status deployment kube-service
+    deployment "kube-service" successfully rolled out
+
+---------------------------------------------------------------------------------------------------------------
+
+ - To update a deployment, the Image version specified within the Pod template is the only thing that needs to be updated.
+ - The deployment will then create a new ReplicaSet for the updated version.
+
+ - Deployment Strategies:
+    - RollingUpdated:  This updated a deployment by reducing the number of pods in the currently deployed ReplicaSet and
+      increasing the number of Pods within the new ReplicaSet version.  This is done until all the Pods are updated to the
+      latest version.  This allows the application service to remain functional during the update process.
+    
+    - Recreate:  This deletes all the Pods associated with the currently deployed reployed ReplicaSet and creates new
+      instances of the Pods associated with the new ReplicaSet.  This should be used when a given application cannot 
+      support running two versions at the same time.
+
+- For a Deployment consisting of a single Container, the "set image" command can be used to update the version of the image.
+- For a larger deployment, the first Deployment should be Applyied and then a newly updated YAML Deployment definition can
+  be applied specifying the newest version of the Images.
+
+$  kubectl set image deployment kube-service kube-service=blgreco72dev/kube-service:v3
+
+- After the above change is make, Controllers detect the update and communicate within the Scheduler to assign the 
+  new Image version to run in Pods on specific Nodes.  The kubelet detectes the changes to remove the old Pods and
+  to create new Pods running the newer version of the Image.
+
+- The deployment will have created a new ReplicaSet to record the new version of the serivce.
+
+$ kubectl get rs
+
+    NAME                      DESIRED   CURRENT   READY   AGE
+    kube-service-5777c44ccf   0         0         0       28m
+    kube-service-59dc8b5bdd   3         3         3       3m36s
+
+- The above shows that the prior ReplicaSet now has zero running Pods and the newest version
+  has 3 associated pods.  This can be tested by calling a route on one of the pods:
+
+$ kubectl get pods -o wide
+
+    NAME                            READY   STATUS    RESTARTS   AGE     IP                NODE      NOMINATED NODE   READINESS GATES
+    client                          1/1     Running   19         5d13h   192.168.138.33    w-node3   <none>           <none>
+    kube-service-59dc8b5bdd-4q97c   1/1     Running   0          5m37s   192.168.129.211   w-node1   <none>           <none>
+    kube-service-59dc8b5bdd-rmr9n   1/1     Running   0          5m34s   192.168.144.102   w-node2   <none>           <none>
+    kube-service-59dc8b5bdd-srqjk   1/1     Running   0          5m30s   192.168.138.34    w-node3   <none>           <none>
+
+$ kubectl port-forward kube-service-59dc8b5bdd-rmr9n 8888:6200
+$ curl http://localhost:8888/api/pod/version
+    v3
+
+-------------------------------------------------------------------------------------------------------------------------------
+
+- The following will roll back a deployment to v2 of the serivce.
+- When using Deployments, the underlying created ReplicaSet resources should never be directly operated on since they
+  are created by the higher level Deployment resource.
+
+$ kubectl rollout undo deployment kube-service
+    deployment.apps/kube-service rolled back
+
+    NAME                      DESIRED   CURRENT   READY   AGE
+    kube-service-5777c44ccf   3         3         3       36m
+    kube-service-59dc8b5bdd   0         0         0       11m
+
+$ kubectl get pods -o wide
+
+    NAME                            READY   STATUS    RESTARTS   AGE     IP                NODE      NOMINATED NODE   READINESS GATES
+    client                          1/1     Running   20         5d13h   192.168.138.33    w-node3   <none>           <none>
+    kube-service-5777c44ccf-8vb6r   1/1     Running   0          62s     192.168.144.104   w-node2   <none>           <none>
+    kube-service-5777c44ccf-f2gt6   1/1     Running   0          60s     192.168.138.38    w-node3   <none>           <none>
+    kube-service-5777c44ccf-gp44w   1/1     Running   0          64s     192.168.129.210   w-node1   <none>           <none>
+
+$ kubectl port-forward kube-service-5777c44ccf-f2gt6 8888:6200
+$ curl http://localhost:8888/api/pod/version
+    v2
+
+- The following command is used to view the rollout history of a Deployment:
+
+$ kubectl rollout history deployment kube-service
+
+    REVISION  CHANGE-CAUSE
+    2         kubectl create --filename=definitions/deployment-definition.yaml --record=true
+    3         kubectl create --filename=definitions/deployment-definition.yaml --record=true
+
+** Note:  not sure why, but the CHANGE-CLAUSE column should how the image version...
+
+----------------------------------------------------------------------------------------------
+
+- You can also specify a specific revision to rollback to:
+
+$ kubectl rollout history deployment kube-service
+
+
+    REVISION  CHANGE-CAUSE
+    2         kubectl create --filename=definitions/deployment-definition.yaml --record=true
+    3         kubectl create --filename=definitions/deployment-definition.yaml --record=true
+
+- The following will undo the last rollback and redeploy verison 3:
+
+$ ubectl rollout undo deployment kube-service
+
+NAME                      DESIRED   CURRENT   READY   AGE   CONTAINERS     IMAGES                         SELECTOR
+kube-service-5777c44ccf   0         0         0       48m   kube-service   blgreco72dev/kube-service:v2   app=kube-service,pod-template-hash=5777c44ccf
+kube-service-59dc8b5bdd   3         3         3       23m   kube-service   blgreco72dev/kube-service:v3   app=kube-service,pod-template-hash=59dc8b5bdd
+
+** Note:  if using the wide output on the ReplicaSet, the image version will be shown.
+
+- Above shows we are back to the latest version 3.  
+
+$ kubectl get pods -o wide
+
+    NAME                            READY   STATUS    RESTARTS   AGE     IP                NODE      NOMINATED NODE   READINESS GATES
+    client                          1/1     Running   20         5d13h   192.168.138.33    w-node3   <none>           <none>
+    kube-service-59dc8b5bdd-9m9qw   1/1     Running   0          3m10s   192.168.138.39    w-node3   <none>           <none>
+    kube-service-59dc8b5bdd-wzdp6   1/1     Running   0          3m15s   192.168.129.209   w-node1   <none>           <none>
+    kube-service-59dc8b5bdd-xkcw8   1/1     Running   0          3m13s   192.168.144.109   w-node2   <none>           <none>
+
+$ kubectl port-forward kube-service-59dc8b5bdd-xkcw8 8888:6200
+$ curl http://localhost:8888/api/pod/version
+    v3
+
+- Next, the following shows how to specify a specific version to rollback to:
+
+$ kubectl rollout history deployment kube-service
+
+REVISION  CHANGE-CAUSE
+3         kubectl create --filename=definitions/deployment-definition.yaml --record=true
+4         kubectl create --filename=definitions/deployment-definition.yaml --record=true
+
+$ kubectl rollout undo deployment kube-service --to-revision=3
+    deployment.apps/kube-service rolled back
+
+----------------------------------------------------------------------------------------------------------------------------------------
+
+- The following two properties determine how many Pods are removed and created when doing a rolling update:
+    - MaxSurge
+    - MaxUnavailable
 
 ######################################################################################
 ### DaemonSet
@@ -3195,7 +3419,7 @@ $ curl  http://localhost:8888/api/volume/file-data
 
 ---------------------------------------------------------------------------------------------
 
-- Next will will dig deep to see where the data is stored...
+- Next will dig deep to see where the data is stored...
 - Run the following to get the ID of the container
 
 $ kubectl get pods -o custom-columns=PodName:.metadata.name,PodUID:.metadata.uid
@@ -3436,7 +3660,7 @@ $ curl http://localhost:8888/api/config/command-args
     ["/microservice/Kube.Service.WebApi.dll","100","M","YES"]
 
   *** Strings don't need to be enclosed inquotation marks, but numbers must be.
-  *** This ass sounds backwards... but ok.
+  *** This sounds ass backwards... but ok.
 
 
 ---------------------------------------------------------------------------------------------
@@ -4145,214 +4369,6 @@ $ kubectl exec -it client -- bash
 Ambassador Containes
 ----------------------------------------------------------------------------------
 
-######################################################################################
-### Deployments
-######################################################################################
-
-- Resources that allow for easy coordination of updates.
-- Built on top of the ReplicaSet and creates a ReplicaSet per-version of the deployment.
-- When a Deployment is udpated, a new ReplicaSet is created.
-
-- The Deployment, based on its update date strategy, reduces the count of pods in the
-  older ReplicaSet and increases the number of pods in the new ReplicaSet until all
-  Pods are running the latest version of the Container.
-
-- The following will create an initial Deployment based on v2 of a Docker image that 
-  when then be updated to v3.
-
-$ cat definitions/deployment-definition.yaml 
-
-    apiVersion: apps/v1
-    kind: Deployment
-    metadata:
-      name: kube-service
-    spec:
-      replicas: 3
-      selector:
-        matchLabels:
-          app: kube-service
-      template:
-        metadata:
-          name: kube-service
-          labels: 
-            app: kube-service
-        spec:
-          containers:
-          - image: blgreco72dev/kube-service:v2
-            name: kube-service
-
-$ kubectl create -f definitions/deployment-definition.yaml --record
-
-$  kubectl get deployments
-
-  NAME           READY   UP-TO-DATE   AVAILABLE   AGE
-  kube-service   3/3     3            3           21s
-
-$ kubectl get rs
-
-  NAME                      DESIRED   CURRENT   READY   AGE
-  kube-service-5777c44ccf   3         3         3       71s
-
-$ kubectl get pods -o wide
-
-  NAME                            READY   STATUS    RESTARTS   AGE     IP                NODE      NOMINATED NODE   READINESS GATES
-  client                          1/1     Running   19         5d12h   192.168.138.33    w-node3   <none>           <none>
-  kube-service-5777c44ccf-7mfl2   1/1     Running   0          97s     192.168.129.208   w-node1   <none>           <none>
-  kube-service-5777c44ccf-st8dl   1/1     Running   0          97s     192.168.144.105   w-node2   <none>           <none>
-  kube-service-5777c44ccf-z5twf   1/1     Running   0          97s     192.168.138.35    w-node3   <none>           <none>
-
--------------------------------------------------------------------------------------------------------------
-
-$ kubectl port-forward kube-service-5777c44ccf-st8dl 8888:6200
-
-$ curl http://localhost:8888/api/pod/version
-    v2
-
-- Note how deployment track the Pods belonging to a geven ReplicaSet by using the unique HolderIdentity,
-  specified within the ReplicaSet name, in each of the Pods created by the ReplicaSet.
-
-** The --record option should be specified when creating the deployment.  This records the command line
-   in the revision history.
-
-- The following command can be used to view the status of a Deployment:
-
-$ kubectl rollout status deployment kube-service
-    deployment "kube-service" successfully rolled out
-
----------------------------------------------------------------------------------------------------------------
-
- - To update a deployment, the Image version specified within the Pod template is the only thing that needs to be updated.
- - The deployment will then create a new ReplicaSet for the updated version.
-
- - Deployment Strategies:
-    - RollingUpdated:  This updated a deployment by reducing the number of pods in the currently deployed ReplicaSet and
-      increasing the number of Pods within the new ReplicaSet version.  This is done until all the Pods are updated to the
-      latest version.  This allows the application service to remain functional during the update process.
-    
-    - Recreate:  This deletes all the Pods associated with the currently deployed reployed ReplicaSet and creates new
-      instances of the Pods associated with the new ReplicaSet.  This should be used when a given application cannot 
-      support running two versions at the same time.
-
-- For a Deployment consisting of a single Container, the "set image" command can be used to update the version of the image.
-- For a larger deployment, the first Deployment should be Applyied and then a newly updated YAML Deployment definition can
-  be applied specifying the newest version of the Images.
-
-$  kubectl set image deployment kube-service kube-service=blgreco72dev/kube-service:v3
-
-- After the above change is make, Controllers detect the update and communicate within the Scheduler to assign the 
-  new Image version to run in Pods on specific Nodes.  The kubelet detectes the changes to remove the old Pods and
-  to create new Pods running the newer version of the Image.
-
-- The deployment will have created a new ReplicaSet to record the new version of the serivce.
-
-$ kubectl get rs
-
-    NAME                      DESIRED   CURRENT   READY   AGE
-    kube-service-5777c44ccf   0         0         0       28m
-    kube-service-59dc8b5bdd   3         3         3       3m36s
-
-- The above shows that the prior ReplicaSet now has zero running Pods and the newest version
-  has 3 associated pods.  This can be tested by calling a route on one of the pods:
-
-$ kubectl get pods -o wide
-
-    NAME                            READY   STATUS    RESTARTS   AGE     IP                NODE      NOMINATED NODE   READINESS GATES
-    client                          1/1     Running   19         5d13h   192.168.138.33    w-node3   <none>           <none>
-    kube-service-59dc8b5bdd-4q97c   1/1     Running   0          5m37s   192.168.129.211   w-node1   <none>           <none>
-    kube-service-59dc8b5bdd-rmr9n   1/1     Running   0          5m34s   192.168.144.102   w-node2   <none>           <none>
-    kube-service-59dc8b5bdd-srqjk   1/1     Running   0          5m30s   192.168.138.34    w-node3   <none>           <none>
-
-$ kubectl port-forward kube-service-59dc8b5bdd-rmr9n 8888:6200
-$ curl http://localhost:8888/api/pod/version
-    v3
-
--------------------------------------------------------------------------------------------------------------------------------
-
-- The following will roll back a deployment to v2 of the serivce.
-- When using Deployments, the underlying created ReplicaSet resources should never be directly operated on since they
-  are created by the higher level Deployment resource.
-
-$ kubectl rollout undo deployment kube-service
-    deployment.apps/kube-service rolled back
-
-    NAME                      DESIRED   CURRENT   READY   AGE
-    kube-service-5777c44ccf   3         3         3       36m
-    kube-service-59dc8b5bdd   0         0         0       11m
-
-$ kubectl get pods -o wide
-
-    NAME                            READY   STATUS    RESTARTS   AGE     IP                NODE      NOMINATED NODE   READINESS GATES
-    client                          1/1     Running   20         5d13h   192.168.138.33    w-node3   <none>           <none>
-    kube-service-5777c44ccf-8vb6r   1/1     Running   0          62s     192.168.144.104   w-node2   <none>           <none>
-    kube-service-5777c44ccf-f2gt6   1/1     Running   0          60s     192.168.138.38    w-node3   <none>           <none>
-    kube-service-5777c44ccf-gp44w   1/1     Running   0          64s     192.168.129.210   w-node1   <none>           <none>
-
-$ kubectl port-forward kube-service-5777c44ccf-f2gt6 8888:6200
-$ curl http://localhost:8888/api/pod/version
-    v2
-
-- The following command is used to view the rollout history of a Deployment:
-
-$ kubectl rollout history deployment kube-service
-
-    REVISION  CHANGE-CAUSE
-    2         kubectl create --filename=definitions/deployment-definition.yaml --record=true
-    3         kubectl create --filename=definitions/deployment-definition.yaml --record=true
-
-** Note:  not sure why, but the CHANGE-CLAUSE column should how the image version...
-
-----------------------------------------------------------------------------------------------
-
-- You can also specify a specific revision to rollback to:
-
-$ kubectl rollout history deployment kube-service
-
-
-    REVISION  CHANGE-CAUSE
-    2         kubectl create --filename=definitions/deployment-definition.yaml --record=true
-    3         kubectl create --filename=definitions/deployment-definition.yaml --record=true
-
-- The following will undo the last rollback and redeploy verison 3:
-
-$ ubectl rollout undo deployment kube-service
-
-NAME                      DESIRED   CURRENT   READY   AGE   CONTAINERS     IMAGES                         SELECTOR
-kube-service-5777c44ccf   0         0         0       48m   kube-service   blgreco72dev/kube-service:v2   app=kube-service,pod-template-hash=5777c44ccf
-kube-service-59dc8b5bdd   3         3         3       23m   kube-service   blgreco72dev/kube-service:v3   app=kube-service,pod-template-hash=59dc8b5bdd
-
-** Note:  if using the wide output on the ReplicaSet, the image version will be shown.
-
-- Above shows we are back to the latest version 3.  
-
-$ kubectl get pods -o wide
-
-    NAME                            READY   STATUS    RESTARTS   AGE     IP                NODE      NOMINATED NODE   READINESS GATES
-    client                          1/1     Running   20         5d13h   192.168.138.33    w-node3   <none>           <none>
-    kube-service-59dc8b5bdd-9m9qw   1/1     Running   0          3m10s   192.168.138.39    w-node3   <none>           <none>
-    kube-service-59dc8b5bdd-wzdp6   1/1     Running   0          3m15s   192.168.129.209   w-node1   <none>           <none>
-    kube-service-59dc8b5bdd-xkcw8   1/1     Running   0          3m13s   192.168.144.109   w-node2   <none>           <none>
-
-$ kubectl port-forward kube-service-59dc8b5bdd-xkcw8 8888:6200
-$ curl http://localhost:8888/api/pod/version
-    v3
-
-- Next, the following shows how to specify a specific version to rollback to:
-
-$ kubectl rollout history deployment kube-service
-
-REVISION  CHANGE-CAUSE
-3         kubectl create --filename=definitions/deployment-definition.yaml --record=true
-4         kubectl create --filename=definitions/deployment-definition.yaml --record=true
-
-$ kubectl rollout undo deployment kube-service --to-revision=3
-    deployment.apps/kube-service rolled back
-
-----------------------------------------------------------------------------------------------------------------------------------------
-
-- The following two properties determine how many Pods are removed and created when doing a rolling update:
-    - MaxSurge
-    - MaxUnavailable
-
 
 ######################################################################################
 ### StatefullSets
@@ -4536,22 +4552,6 @@ TODO:
 
 * Services represent a static location for a group of one or more pods that all provide 
   the same service.
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 ???????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????

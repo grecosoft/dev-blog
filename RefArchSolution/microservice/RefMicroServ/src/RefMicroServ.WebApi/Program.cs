@@ -76,7 +76,7 @@ namespace RefMicroServ.WebApi
             };
             
             builder.AddAppSettings(context.HostingEnvironment);
-            AddJsonFiles(builder, "Configs");
+            AddJsonFiles(builder, "/etc/ref-arch-srv/configs");
             
         }
 

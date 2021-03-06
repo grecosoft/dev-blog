@@ -83,7 +83,7 @@ VM Setting:
 - After all the above VMs are created, configure each with the following settings:
   - 2048 RAM
 	- 2 CPUs  (System|Processor)
-	- Add Adapter2 Host-only Adapter (Network|Adapter2)
+	- Add Adapter2 Host-only Adapter (Network|Adapter2) and select vboxnet1
 
 
 
@@ -160,7 +160,7 @@ $ ssh-copy-id w-node3@192.168.56.7
   - Configure Docker to use systemd for cgroupdriver 
   - Remove Swap
   - Install: kubelet, kubeadm, and kubectl
-  - Initialize Kubernetes Cluster on Mater Node
+  - Initialize Kubernetes Cluster on Master Node
   - Install Calico Pod Networking
   - Join each worker node to the cluster
 
