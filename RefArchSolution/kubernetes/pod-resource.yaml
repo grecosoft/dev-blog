@@ -15,7 +15,12 @@ spec:
     volumeMounts:
     - name: config
       mountPath: /etc/ref-arch-srv/configs
+    - name: config-secrets
+      mountPath: /etc/ref-arch-srv/secrets
   volumes:
   - name: config
     configMap:
       name: app-settings
+  - name: config-secrets
+    secret:
+      secretName: app-secrets

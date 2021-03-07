@@ -22,4 +22,7 @@ kubectl create configmap app-settings -n ref-arch-dev \
 --from-file=../microservice/Configs/dev/connections.json \
 --from-file=../microservice/Configs/dev/processors.json
 
+kubectl create secret generic app-secrets -n ref-arch-dev \
+--from-file=../microservice/Configs/dev/secrets.json
+
 kubectl create -f ./pod-resource.yaml -n ref-arch-dev

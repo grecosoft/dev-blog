@@ -68,22 +68,17 @@ namespace RefMicroServ.WebApi
         private static void SetupConfiguration(HostBuilderContext context, 
             IConfigurationBuilder builder)
         {
-            var configData = new ConnectionSettings
-            {
-                Metadata = "Value one",
-                Render = "Value two",
-                Templates = "value three"
-            };
-            
             builder.AddAppSettings(context.HostingEnvironment);
+            
             AddJsonFiles(builder, "/etc/ref-arch-srv/configs");
+            AddJsonFiles(builder, "/etc/ref-arch-srv/secrets");
             
         }
 
         private static void AddJsonFiles(IConfigurationBuilder builder, string directory)
         {
             Directory.GetFiles(directory, "*.json")
-                .ForEach(f => builder.AddJsonFile(f));
+                .ForEach(f => builder.AddJsonFile(f, false, true));
         }
 
         private static void SetupLogging(HostBuilderContext context, 

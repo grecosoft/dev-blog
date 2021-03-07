@@ -26,8 +26,4 @@
     <PackageReference Include="Serilog.Sinks.ColoredConsole" Version="3.0.1" />
     <PackageReference Include="Serilog.Sinks.Seq" Version="4.0.0" />
   </ItemGroup>
-  <ItemGroup>
-    <Folder Include="Configs\prod" />
-    <Folder Include="Configs\test" />
-  </ItemGroup>
 </Project>
