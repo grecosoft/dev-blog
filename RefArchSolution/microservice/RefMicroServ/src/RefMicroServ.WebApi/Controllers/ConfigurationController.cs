@@ -1,28 +1,43 @@
 ﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using RefMicroServ.App;
+using RefMicroServ.App.Configs;
 
 namespace RefMicroServ.WebApi.Controllers
 {
     [ApiController, Route("api/configs")]
     public class ConfigurationController : ControllerBase
     {
-        private readonly ConnectionSettings _connections;
-        private readonly ProcessingSettings _processing;
+        private readonly IConfiguration _configuration;
+        private readonly ILogger _logger;
+        private readonly RepositorySettings _repositories;
+        private readonly ProcessingSettings _processors;
         
         public ConfigurationController(
-            ConnectionSettings connections,
-            ProcessingSettings processing)
+            IConfiguration configuration,
+            ILogger<ConfigurationController> logger,
+            RepositorySettings repositories,
+            ProcessingSettings processors)
         {
-            _connections = connections;
-            _processing = processing;
+            _configuration = configuration;
+            _logger = logger;
+            _repositories = repositories;
+            _processors = processors;
         }
 
+        [HttpGet("log/url")]
+        public IActionResult GetSeqLogUrl()
+        {
+            _logger.LogError("Test Error Log Message");
+            return Ok(_configuration.GetValue<string>("logging:seqUrl"));
+        }
 
-        [HttpGet("connections")]
-        public ConnectionSettings GetConnections() => _connections;
+        [HttpGet("repositories")]
+        public IActionResult GetRepositories() => Ok(_repositories);
 
 
-        [HttpGet("processing")]
-        public ProcessingSettings GetProcessing() => _processing;
+        [HttpGet("processors")]
+        public IActionResult GetProcessing() => Ok(_processors);
     }
 }

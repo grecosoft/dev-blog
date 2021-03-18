@@ -68,11 +68,10 @@ namespace RefMicroServ.WebApi
         private static void SetupConfiguration(HostBuilderContext context, 
             IConfigurationBuilder builder)
         {
-            builder.AddAppSettings(context.HostingEnvironment);
+            //builder.AddAppSettings(context.HostingEnvironment);
             
             AddJsonFiles(builder, "/etc/ref-arch-srv/configs");
             AddJsonFiles(builder, "/etc/ref-arch-srv/secrets");
-            
         }
 
         private static void AddJsonFiles(IConfigurationBuilder builder, string directory)
@@ -84,23 +83,32 @@ namespace RefMicroServ.WebApi
         private static void SetupLogging(HostBuilderContext context, 
             ILoggingBuilder builder)
         {
-            //var seqUrl = context.Configuration.GetValue("logging:seqUrl", "http://localhost:5341");
+            var seqUrl = context.Configuration.GetValue("logging:seqUrl", string.Empty);
+            if (string.IsNullOrEmpty(seqUrl))
+            {
+                Debug.WriteLine("URL for SEQ not configured.");
+            }
 
             // Send any Serilog configuration issue logs to console.
             Serilog.Debugging.SelfLog.Enable(msg => Debug.WriteLine(msg));
             Serilog.Debugging.SelfLog.Enable(Console.Error);
-            
-            Log.Logger = new LoggerConfiguration()
-                .MinimumLevel.ControlledBy(LogLevelControl.Switch)
+
+            var logConfig = new LoggerConfiguration()
+                .MinimumLevel.Debug()
                 .MinimumLevel.Override("Microsoft.AspNetCore", LogEventLevel.Warning)
 
                 .Enrich.FromLogContext()
                 .Enrich.WithCorrelationId()
                 .Enrich.WithHostIdentity(WebApiPlugin.HostId, WebApiPlugin.HostName)
-                
-                .WriteTo.ColoredConsole()
-              //  .WriteTo.Seq(seqUrl)
-                .CreateLogger();
+
+                .WriteTo.ColoredConsole();
+
+            if (! string.IsNullOrEmpty(seqUrl))
+            {
+                logConfig.WriteTo.Seq(seqUrl);
+            }
+
+            Log.Logger = logConfig.CreateLogger();
         }
     }
 }

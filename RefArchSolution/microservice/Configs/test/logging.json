@@ -1,0 +1,5 @@
+{
+  "logging": {
+    "seqUrl": "http://seq.ref-arch-dev.svc.cluster.local:5341"
+  }
+}

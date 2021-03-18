@@ -19,8 +19,9 @@
 # settings can be overriden by a specific microservice configuration.
 
 kubectl create configmap app-settings -n ref-arch-dev \
---from-file=../microservice/Configs/dev/connections.json \
---from-file=../microservice/Configs/dev/processors.json
+--from-file=../microservice/Configs/dev/repositories.json \
+--from-file=../microservice/Configs/dev/processors.json \
+--from-file=../microservice/Configs/dev/logging.json
 
 kubectl create secret generic app-secrets -n ref-arch-dev \
 --from-file=../microservice/Configs/dev/secrets.json

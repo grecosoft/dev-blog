@@ -3,7 +3,7 @@ kind: ReplicaSet
 metadata:
   name: kube-service-rs
 spec:
-  replicas: 3
+  replicas: 6
   selector:
     matchLabels:
       app: kube-srv

@@ -1,9 +1,0 @@
-﻿{
-  "configs": {
-    "connections": {
-      "metadata": "http://RefArchApi/Processing/Metadata",
-      "templates": "http://RefArchApi/Processing/Templates",
-      "render": "http://RefArchApi/Processing/render"
-    }
-  }
-}

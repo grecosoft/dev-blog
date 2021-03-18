@@ -1,0 +1,22 @@
+{
+  "configs": {
+    "repositories": {
+      "defaultTimeoutSeconds": 15,
+      "DefaultNumberOfRetries": 2,
+      "connections": {
+        "metadata": {
+          "connectionValue": "http://RefArchApi/Processing/Metadata",
+          "userName": "metadata_reader"
+        },
+        "templates": {
+          "connectionValue": "http://RefArchApi/Processing/Templates",
+          "userName": "template_reader"
+        },
+        "render": {
+          "connectionValue": "http://RefArchApi/Processing/render",
+          "userName": "render_processor"
+        }
+      }
+    }
+  }
+}
